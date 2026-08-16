@@ -108,4 +108,37 @@ describe('Safe Zone Checker Tests', () => {
     const bottomV = result.violations.find(v => v.side === 'bottom' || v.side === 'bottom_caption');
     assert.ok(bottomV, 'Must detect bottom caption violation in TikTok');
   });
+
+  test('VK Clips 9:16 preset detects right action buttons and header cutouts', () => {
+    const vkChecker = new SafeZoneChecker({
+      preset: BROADCAST_PRESETS.VK_CLIPS_9_16
+    });
+
+    const w916 = 1080;
+    const h916 = 1920;
+
+    // Layer in top header: top = 50, bottom = 150
+    const aabbTop = { left: 200, right: 800, top: 50, bottom: 150, width: 600, height: 100 };
+    const resTop = vkChecker.check(aabbTop, w916, h916);
+    assert.equal(resTop.passed, false);
+
+    // Layer in right actions: left = 940, right = 1050, top = 1000, bottom = 1200
+    const aabbRight = { left: 940, right: 1050, top: 1000, bottom: 1200, width: 110, height: 200 };
+    const resRight = vkChecker.check(aabbRight, w916, h916);
+    assert.equal(resRight.passed, false);
+    assert.ok(resRight.violations.some(v => v.side === 'right_actions' || v.side === 'right'));
+  });
+
+  test('YouTube Shorts 9:16 preset detects action buttons and bottom subscribe cutouts', () => {
+    const shortsChecker = new SafeZoneChecker({
+      preset: BROADCAST_PRESETS.YOUTUBE_SHORTS_9_16
+    });
+
+    const w916 = 1080;
+    const h916 = 1920;
+
+    const aabbBottom = { left: 50, right: 600, top: 1650, bottom: 1850, width: 550, height: 200 };
+    const res = shortsChecker.check(aabbBottom, w916, h916);
+    assert.equal(res.passed, false);
+  });
 });

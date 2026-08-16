@@ -4,8 +4,15 @@
  * Provides live logging to AE Info Panel (writeLn) and status bar updates.
  */
 
-// Basic JSON serialization support for ExtendScript (ES3)
+// Basic JSON serialization & parsing support for ExtendScript (ES3)
 var JSONHelper = {
+    parse: function(jsonStr) {
+        if (!jsonStr) return null;
+        if (typeof JSON !== "undefined" && JSON.parse) {
+            return JSON.parse(jsonStr);
+        }
+        return eval("(" + jsonStr + ")");
+    },
     stringify: function(obj) {
         if (typeof JSON !== "undefined" && JSON.stringify) {
             return JSON.stringify(obj);
@@ -491,18 +498,22 @@ var BroadcastQCHost = {
             var margins = { top: 5, bottom: 5, left: 5, right: 5, cutouts: [] };
             if (marginPercentJson) {
                 try {
-                    var parsed = typeof marginPercentJson === "string" ? JSONHelper.parse(marginPercentJson) : marginPercentJson;
-                    if (typeof parsed === "string") {
+                    var parsed = marginPercentJson;
+                    while (typeof parsed === "string") {
                         parsed = JSONHelper.parse(parsed);
                     }
                     if (parsed && typeof parsed === "object") {
-                        margins.top = Number(parsed.top) || 0;
-                        margins.bottom = Number(parsed.bottom) || 0;
-                        margins.left = Number(parsed.left) || 0;
-                        margins.right = Number(parsed.right) || 0;
-                        margins.cutouts = (parsed.cutouts && parsed.cutouts.length > 0) ? parsed.cutouts : [];
+                        if (parsed.top !== undefined && parsed.top !== null) margins.top = Number(parsed.top);
+                        if (parsed.bottom !== undefined && parsed.bottom !== null) margins.bottom = Number(parsed.bottom);
+                        if (parsed.left !== undefined && parsed.left !== null) margins.left = Number(parsed.left);
+                        if (parsed.right !== undefined && parsed.right !== null) margins.right = Number(parsed.right);
+                        if (parsed.cutouts && parsed.cutouts.length > 0) {
+                            margins.cutouts = parsed.cutouts;
+                        }
                     }
-                } catch (e) {}
+                } catch (parseErr) {
+                    writeLn("[Broadcast QC] Ошибка парсинга Safe Zone параметров: " + parseErr.toString());
+                }
             }
 
             app.beginUndoGroup("Broadcast QC: Показать Safe Zone Guide");
