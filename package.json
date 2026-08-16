@@ -1,0 +1,30 @@
+{
+  "name": "broadcast-qc",
+  "version": "2.0.0",
+  "description": "Broadcast Quality Control Extension for Adobe After Effects 2026.2 (Spell Check, Safe Zone, AI Agent, Reading Speed, Auto-Fix & Auto-Updater)",
+  "main": "packages/qc-core/src/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "package": "node scripts/package-release.js",
+    "install:ext": "powershell -ExecutionPolicy Bypass -File ./install.ps1",
+    "uninstall:ext": "powershell -ExecutionPolicy Bypass -File ./uninstall.ps1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daarnix-anim/BroadcastQC.git"
+  },
+  "keywords": [
+    "after-effects",
+    "adobe",
+    "broadcast",
+    "qc",
+    "spellcheck",
+    "safe-zone",
+    "motion-design",
+    "cep-extension",
+    "auto-updater"
+  ],
+  "author": "Antigravity",
+  "license": "MIT"
+}

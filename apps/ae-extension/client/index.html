@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Broadcast QC 2.0</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Global Error Banner (Fallback for uncaught exceptions) -->
+    <div id="globalErrorBanner">
+        <div class="banner-content">
+            <span id="globalErrorMessage">Произошла ошибка в расширении</span>
+            <div style="display: flex; gap: 4px;">
+                <button id="btnCopyError">Копировать</button>
+                <button id="btnCloseBanner">&times;</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Toast Notifications -->
+    <div id="toastContainer"></div>
+
+    <!-- Update Modal Window -->
+    <div id="updateModal" class="modal-backdrop">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <span>🚀</span> Доступно обновление
+                </div>
+                <button class="modal-close" id="btnUpdateModalClose" title="Закрыть">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <div style="font-weight: 700; font-size: 13px; color: var(--accent);" id="modalNewVersionTitle">Версия v2.0.1</div>
+                    <div style="font-size: 10.5px; color: var(--text-muted);" id="modalCurrentVersion">Текущая: v2.0.0</div>
+                </div>
+
+                <div style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Что нового:</div>
+                <div id="modalReleaseNotes" class="release-notes-box">Загрузка описания...</div>
+
+                <!-- Download Progress Bar inside Modal -->
+                <div id="modalProgressContainer" style="display: none; flex-direction: column; gap: 6px; margin-top: 4px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 11px;">
+                        <span id="modalProgressStep">Скачивание файлов обновления...</span>
+                        <span id="modalProgressPercent" style="font-weight: 700; color: var(--accent);">0%</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div id="modalProgressBarFill" class="progress-bar-fill"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" id="modalFooter">
+                <button id="btnRemindLater" class="btn-secondary">Позже</button>
+                <button id="btnPerformUpdate" class="btn-primary">
+                    <span>🚀</span> Обновиться сейчас
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="app-header">
+        <div class="logo-area">
+            <span class="logo-badge">QC 2.0</span>
+            <div>
+                <div class="app-title">Broadcast QC</div>
+            </div>
+        </div>
+        <div class="header-status-area">
+            <div class="status-pill" id="statusPill" title="Статус подключения к After Effects">
+                <span class="status-dot offline" id="statusDot"></span>
+                <span id="connectionStatus">Инициализация...</span>
+            </div>
+            <button class="btn-icon" id="btnRefreshStatus" title="Обновить статус After Effects">⟳</button>
+        </div>
+    </header>
+
+    <!-- Nav Tabs -->
+    <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="tab-check">Проверка</button>
+        <button class="tab-btn" data-tab="tab-safezone">Safe Zone</button>
+        <button class="tab-btn" data-tab="tab-ai">AI Агент</button>
+        <button class="tab-btn" data-tab="tab-dict">Словарь</button>
+        <button class="tab-btn" data-tab="tab-about">Инфо</button>
+    </nav>
+
+    <!-- Tab 1: Check -->
+    <section id="tab-check" class="tab-content active">
+        <!-- Quick Options & Scan Button -->
+        <div class="action-card">
+            <div class="options-row">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="chkSpelling" checked>
+                    <span>Орфография</span>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="chkTypography" checked>
+                    <span>ТВ-типографика</span>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="chkReadingSpeed" checked>
+                    <span>Скорость чтения</span>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="chkHealth" checked>
+                    <span>Аудит проекта</span>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="chkSafeZone">
+                    <span>Safe Zone</span>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="chkUseAI">
+                    <span>AI Агент</span>
+                </label>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button id="btnRunQC" class="btn-primary" style="flex: 1;">
+                    <span id="btnRunIcon">⚡</span> <span id="btnRunText">Запустить проверку композиции</span>
+                </button>
+                <button id="btnExportReport" class="btn-secondary" style="display: none; white-space: nowrap;" title="Экспортировать паспорт контроля качества в HTML">
+                    <span>📄</span> Экспорт отчёта
+                </button>
+            </div>
+        </div>
+
+        <!-- Live Step-by-Step Progress Card -->
+        <div id="progressCard" class="progress-card">
+            <div class="progress-header">
+                <div class="progress-title">
+                    <span class="spinner"></span>
+                    <span id="progressTitle">Выполняется анализ...</span>
+                </div>
+                <span id="progressPercent" class="progress-percent">0%</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div id="progressBarFill" class="progress-bar-fill"></div>
+            </div>
+            <div id="progressStepText" class="progress-step-text">Подготовка к сбору слоев...</div>
+        </div>
+
+        <!-- Actionable Guidance Card ("Что делать дальше") -->
+        <div id="guidanceCard" class="guidance-card">
+            <div class="guidance-title">
+                <span id="guidanceIcon">💡</span>
+                <span id="guidanceHeading">Что делать дальше:</span>
+            </div>
+            <div id="guidanceBody" class="guidance-text"></div>
+        </div>
+
+        <!-- Summary Grid -->
+        <div id="summarySection" style="display: none;">
+            <div class="summary-grid">
+                <div class="stat-box errors">
+                    <div id="statErrors" class="stat-number" style="color: var(--error);">0</div>
+                    <div class="stat-label">Ошибок</div>
+                </div>
+                <div class="stat-box warnings">
+                    <div id="statWarnings" class="stat-number" style="color: var(--warning);">0</div>
+                    <div class="stat-label">Предупреждений</div>
+                </div>
+                <div class="stat-box passed">
+                    <div id="statLayers" class="stat-number" style="color: var(--success);">0</div>
+                    <div class="stat-label">Слоев проверено</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Issues List -->
+        <div id="issuesContainer" class="issue-list">
+            <div class="empty-state" id="initialEmptyState">
+                🎯 <b>Готов к работе</b><br><br>
+                Откройте нужную композицию в After Effects и нажмите кнопку <b>«Запустить проверку композиции»</b> выше.<br>
+                Сценарий автоматически проверит текст, Safe Zone, скорость чтения и Guide-слои.
+            </div>
+        </div>
+    </section>
+
+    <!-- Tab 2: Safe Zone Settings -->
+    <section id="tab-safezone" class="tab-content">
+        <div class="action-card">
+            <div class="form-group">
+                <label class="form-label" for="selectSafePreset">Пресет безопасной зоны</label>
+                <select id="selectSafePreset" class="form-select">
+                    <option value="ebu_r95_title">EBU R95 Title Safe (90% - 5% отступ)</option>
+                    <option value="ebu_r95_action">EBU R95 Action Safe (93% - 3.5% отступ)</option>
+                    <option value="smpte_title_80">SMPTE RP 218 Title Safe (80% - 10% отступ)</option>
+                    <option value="smpte_action_90">SMPTE RP 218 Action Safe (90% - 5% отступ)</option>
+                    <option value="social_vertical_9_16">Social Vertical 9:16 (UI Safe)</option>
+                    <option value="custom">Пользовательский (Custom)</option>
+                </select>
+            </div>
+
+            <div id="customMarginsGroup" style="display: none; flex-direction: column; gap: 8px;">
+                <div class="form-group">
+                    <label class="form-label">Отступ слева / справа (%)</label>
+                    <input type="number" id="customMarginH" class="form-input" value="5" min="0" max="40">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Отступ сверху / снизу (%)</label>
+                    <input type="number" id="customMarginV" class="form-input" value="5" min="0" max="40">
+                </div>
+            </div>
+        </div>
+
+        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px;">
+            <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px;">📐 Принцип проверки Safe Zone:</div>
+            <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.5;">
+                Safe Zone анализируется <b>только в моменты стабильного состояния текста (Stable States)</b>, когда завершена анимация влета или масштабирования. Динамическое движение во время транзишна не считается ошибкой.
+            </div>
+        </div>
+    </section>
+
+    <!-- Tab 3: AI Agent Settings -->
+    <section id="tab-ai" class="tab-content">
+        <div class="action-card" style="gap: 10px;">
+            <div class="form-group">
+                <label class="form-label" for="aiProviderSelect">Провайдер AI</label>
+                <select id="aiProviderSelect" class="form-select">
+                    <option value="none">Отключен (None)</option>
+                    <option value="ollama">Ollama (Локальный сервер)</option>
+                    <option value="lm_studio">LM Studio (Локальный сервер)</option>
+                    <option value="openai">OpenAI / DeepSeek API</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="aiBaseUrl">Адрес сервера (Base URL)</label>
+                <input type="text" id="aiBaseUrl" class="form-input" value="http://localhost:11434" placeholder="http://localhost:11434">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="aiModel">Модель</label>
+                <input type="text" id="aiModel" class="form-input" value="llama3:8b" placeholder="llama3:8b, mistral, deepseek-chat">
+            </div>
+
+            <div class="form-group" id="aiApiKeyGroup" style="display: none;">
+                <label class="form-label" for="aiApiKey">API Ключ</label>
+                <input type="password" id="aiApiKey" class="form-input" placeholder="sk-...">
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                <button id="btnTestAI" class="btn-secondary">Проверить связь</button>
+                <span id="aiStatusText" style="font-size: 11px; color: var(--text-muted);">Не настроен</span>
+            </div>
+        </div>
+
+        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px;">
+            <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px;">🧠 Что проверяет AI-агент:</div>
+            <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.5;">
+                • Смысловые и фактические несоответствия (несуществующие даты, опечатки в годах)<br>
+                • Согласование падежей и окончаний в сложных фразах<br>
+                • Единообразие валют, единиц измерения и написания брендов
+            </div>
+        </div>
+    </section>
+
+    <!-- Tab 4: Dictionary -->
+    <section id="tab-dict" class="tab-content">
+        <div class="action-card">
+            <div class="form-group">
+                <label class="form-label" for="newWordInput">Добавить слово или бренд в белый список</label>
+                <div style="display: flex; gap: 6px;">
+                    <input type="text" id="newWordInput" class="form-input" style="flex: 1;" placeholder="Например: Cinema4D, Октайн, Анивидео">
+                    <button id="btnAddWord" class="btn-secondary">Добавить</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label class="form-label">Словарь исключений (<span id="dictWordCount">0</span>)</label>
+                <button id="btnResetDict" class="btn-mini" style="color: var(--text-muted);">Сбросить</button>
+            </div>
+            <div id="dictWordTags" class="word-tags"></div>
+        </div>
+    </section>
+
+    <!-- Tab 5: About & Updates -->
+    <section id="tab-about" class="tab-content">
+        <div class="action-card" style="gap: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-weight: 700; font-size: 14px;">Broadcast QC Extension</div>
+                <span class="logo-badge" id="appVersionBadge">v2.0.0</span>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary);">
+                Интеллектуальный контроль качества для motion-design проектов и ТВ-вещания.
+            </div>
+            <hr style="border: none; border-top: 1px solid var(--border-color); margin: 4px 0;">
+            <div style="font-size: 11px; color: var(--text-muted); line-height: 1.6;">
+                • Поддерживаемый хост: <b>Adobe After Effects 2026.2+</b><br>
+                • Архитектура: <b>CEP 11-13 (HTML5 + Node.js + ExtendScript)</b><br>
+                • Оффлайн спеллчекер (RU/EN) + 1-Click Auto-Fix в слоях AE<br>
+                • Smart Stable State геометрия (EBU R95 / SMPTE)<br>
+                • Контроль скорости чтения (WPM / CPS) и аудит Guide-слоев<br>
+                • Интеграция с локальными LLM (Ollama, LM Studio) и API<br>
+                • Экспорт паспорта качества в HTML / PDF
+            </div>
+        </div>
+
+        <!-- GitHub Updates Card -->
+        <div class="action-card" style="gap: 10px;">
+            <div style="font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                <span>🔄</span> Обновление через GitHub
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="githubRepoInput">Репозиторий GitHub</label>
+                <input type="text" id="githubRepoInput" class="form-input" value="daarnix-anim/BroadcastQC" placeholder="username/repo">
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <button id="btnCheckUpdatesManual" class="btn-secondary">
+                    <span>🔍</span> Проверить обновления
+                </button>
+                <span id="updateStatusText" style="font-size: 11px; color: var(--text-muted);">Актуальная версия</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Scripts -->
+    <script src="js/CSInterface.js"></script>
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
