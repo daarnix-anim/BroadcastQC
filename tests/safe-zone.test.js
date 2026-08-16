@@ -61,4 +61,51 @@ describe('Safe Zone Checker Tests', () => {
     assert.equal(safeArea.right, 1800);
     assert.equal(safeArea.bottom, 1012);
   });
+
+  test('Custom 4-sided percentage margins config (Left, Right, Top, Bottom)', () => {
+    const customChecker = new SafeZoneChecker({
+      customMarginPercent: { left: 8, right: 12, top: 6, bottom: 10 }
+    });
+
+    const safeArea = customChecker.getSafeArea(compW, compH);
+    // 8% of 1920 = 153.6 -> 154, 12% = 230.4 -> 230, 6% of 1080 = 64.8 -> 65, 10% = 108
+    assert.equal(safeArea.left, Math.round(1920 * 0.08));
+    assert.equal(safeArea.top, Math.round(1080 * 0.06));
+    assert.equal(safeArea.right, Math.round(1920 - 1920 * 0.12));
+    assert.equal(safeArea.bottom, Math.round(1080 - 1080 * 0.10));
+  });
+
+  test('Instagram Reels 9:16 preset detects right action buttons cutout overlay', () => {
+    const reelsChecker = new SafeZoneChecker({
+      preset: BROADCAST_PRESETS.INSTAGRAM_REELS_9_16
+    });
+
+    const w916 = 1080;
+    const h916 = 1920;
+
+    // Layer in the right buttons area: left = 920, right = 1050, top = 1000, bottom = 1200
+    const aabb = { left: 920, right: 1050, top: 1000, bottom: 1200, width: 130, height: 200 };
+    const result = reelsChecker.check(aabb, w916, h916);
+
+    assert.equal(result.passed, false);
+    const cutoutV = result.violations.find(v => v.side === 'right_actions');
+    assert.ok(cutoutV, 'Must detect right actions cutout violation in Instagram Reels');
+  });
+
+  test('TikTok 9:16 preset detects bottom caption & vinyl disc cutout', () => {
+    const tiktokChecker = new SafeZoneChecker({
+      preset: BROADCAST_PRESETS.TIKTOK_9_16
+    });
+
+    const w916 = 1080;
+    const h916 = 1920;
+
+    // Layer in bottom caption area: left = 50, right = 600, top = 1600, bottom = 1800
+    const aabb = { left: 50, right: 600, top: 1600, bottom: 1800, width: 550, height: 200 };
+    const result = tiktokChecker.check(aabb, w916, h916);
+
+    assert.equal(result.passed, false);
+    const bottomV = result.violations.find(v => v.side === 'bottom' || v.side === 'bottom_caption');
+    assert.ok(bottomV, 'Must detect bottom caption violation in TikTok');
+  });
 });

@@ -4,24 +4,24 @@ import { AutoUpdater, compareSemver } from '../packages/updater/index.js';
 
 test('AutoUpdater Module Tests', async (t) => {
   await t.test('SemVer version comparison', () => {
-    assert.equal(compareSemver('2.0.0', '2.0.1'), 1, '2.0.1 should be newer than 2.0.0');
-    assert.equal(compareSemver('2.0.0', '2.1.0'), 1, '2.1.0 should be newer than 2.0.0');
-    assert.equal(compareSemver('2.0.0', '3.0.0'), 1, '3.0.0 should be newer than 2.0.0');
-    assert.equal(compareSemver('v2.0.0', 'v2.0.0'), 0, 'Equal versions should return 0');
-    assert.equal(compareSemver('2.1.0', '2.0.9'), -1, '2.0.9 should be older than 2.1.0');
+    assert.equal(compareSemver('0.8.2', '0.8.3'), 1, '0.8.3 should be newer than 0.8.2');
+    assert.equal(compareSemver('0.8.2', '0.9.0'), 1, '0.9.0 should be newer than 0.8.2');
+    assert.equal(compareSemver('0.8.2', '1.0.0'), 1, '1.0.0 should be newer than 0.8.2');
+    assert.equal(compareSemver('v0.8.2', 'v0.8.2'), 0, 'Equal versions should return 0');
+    assert.equal(compareSemver('0.8.2', '0.8.1'), -1, '0.8.1 should be older than 0.8.2');
   });
 
   await t.test('Parses GitHub Releases API response correctly', async () => {
     const mockRelease = {
-      tag_name: 'v2.1.0',
-      name: 'Broadcast QC v2.1.0 - Major Improvements',
+      tag_name: 'v0.9.0',
+      name: 'Broadcast QC v0.9.0 - Major Improvements',
       body: '### What is new:\n- Added auto-updater\n- Improved safe zone',
       published_at: '2026-08-16T12:00:00Z',
-      html_url: 'https://github.com/daarnix-anim/BroadcastQC/releases/tag/v2.1.0',
+      html_url: 'https://github.com/daarnix-anim/BroadcastQC/releases/tag/v0.9.0',
       assets: [
         {
-          name: 'broadcast-qc-v2.1.0.zip',
-          browser_download_url: 'https://github.com/daarnix-anim/BroadcastQC/releases/download/v2.1.0/broadcast-qc-v2.1.0.zip',
+          name: 'broadcast-qc-v0.9.0.zip',
+          browser_download_url: 'https://github.com/daarnix-anim/BroadcastQC/releases/download/v0.9.0/broadcast-qc-v0.9.0.zip',
           size: 1540000
         }
       ]
@@ -35,26 +35,26 @@ test('AutoUpdater Module Tests', async (t) => {
 
     const updater = new AutoUpdater({
       repo: 'daarnix-anim/BroadcastQC',
-      currentVersion: '2.0.0',
+      currentVersion: '0.8.2',
       fetchFn: mockFetch
     });
 
     const result = await updater.checkForUpdates();
 
     assert.equal(result.hasUpdate, true);
-    assert.equal(result.latestVersion, '2.1.0');
-    assert.equal(result.releaseName, 'Broadcast QC v2.1.0 - Major Improvements');
-    assert.equal(result.downloadUrl, 'https://github.com/daarnix-anim/BroadcastQC/releases/download/v2.1.0/broadcast-qc-v2.1.0.zip');
+    assert.equal(result.latestVersion, '0.9.0');
+    assert.equal(result.releaseName, 'Broadcast QC v0.9.0 - Major Improvements');
+    assert.equal(result.downloadUrl, 'https://github.com/daarnix-anim/BroadcastQC/releases/download/v0.9.0/broadcast-qc-v0.9.0.zip');
     assert.equal(result.assetSize, 1540000);
   });
 
   await t.test('Reports no update when current version is equal to or greater than release', async () => {
     const mockRelease = {
-      tag_name: 'v2.0.0',
-      name: 'Broadcast QC v2.0.0',
+      tag_name: 'v0.8.2',
+      name: 'Broadcast QC v0.8.2',
       body: 'Initial release',
       published_at: '2026-08-16T12:00:00Z',
-      html_url: 'https://github.com/daarnix-anim/BroadcastQC/releases/tag/v2.0.0',
+      html_url: 'https://github.com/daarnix-anim/BroadcastQC/releases/tag/v0.8.2',
       assets: []
     };
 
@@ -66,12 +66,12 @@ test('AutoUpdater Module Tests', async (t) => {
 
     const updater = new AutoUpdater({
       repo: 'daarnix-anim/BroadcastQC',
-      currentVersion: '2.0.0',
+      currentVersion: '0.8.2',
       fetchFn: mockFetch
     });
 
     const result = await updater.checkForUpdates();
     assert.equal(result.hasUpdate, false);
-    assert.equal(result.latestVersion, '2.0.0');
+    assert.equal(result.latestVersion, '0.8.2');
   });
 });

@@ -81,8 +81,10 @@ export class BroadcastQCCore {
           layerId: h.layerId,
           layerName: h.layerName,
           layerIndex: h.layerIndex,
-          compIndex: comp.index || 1,
-          compName: comp.name,
+          compId: h.compId || comp.id || 0,
+          compName: h.compName || comp.name,
+          parentCompName: h.parentCompName || '',
+          isNested: !!h.parentCompName,
           time: 0,
           timecode: '00:00:00:00',
           message: h.message,
@@ -95,10 +97,14 @@ export class BroadcastQCCore {
     for (const layer of layers) {
       const layerIssues = [];
       const duration = Math.max(0, (layer.outPoint || 0) - (layer.inPoint || 0));
+      const layerCompId = layer.compId || comp.id || 0;
+      const layerCompName = layer.compName || comp.name;
+      const parentCompName = layer.parentCompName || '';
+      const isNested = !!parentCompName || !!layer.isNested;
 
       // 2.1. Проверка правописания и типографики
       if (this.options.checkSpelling && layer.text) {
-        const spellResult = this.spellChecker.check(layer.text);
+        const spellResult = await this.spellChecker.checkAsync(layer.text);
         if (spellResult.issues && spellResult.issues.length > 0) {
           for (const item of spellResult.issues) {
             if (item.severity === 'error') totalSpellingErrors++;
@@ -110,8 +116,10 @@ export class BroadcastQCCore {
               layerId: layer.id,
               layerName: layer.name,
               layerIndex: layer.index,
-              compIndex: comp.index || 1,
-              compName: comp.name,
+              compId: layerCompId,
+              compName: layerCompName,
+              parentCompName,
+              isNested,
               time: layer.inPoint || 0,
               timecode: this.formatTimecode(layer.inPoint || 0, comp.frameRate || 30),
               message: item.message,
@@ -128,7 +136,7 @@ export class BroadcastQCCore {
         if (Array.isArray(layer.textVariations)) {
           for (const variation of layer.textVariations) {
             if (variation.text !== layer.text) {
-              const varSpell = this.spellChecker.check(variation.text);
+              const varSpell = await this.spellChecker.checkAsync(variation.text);
               for (const item of varSpell.issues) {
                 if (item.severity === 'error') totalSpellingErrors++;
                 if (item.severity === 'warning') totalTypographyWarnings++;
@@ -139,8 +147,10 @@ export class BroadcastQCCore {
                   layerId: layer.id,
                   layerName: layer.name,
                   layerIndex: layer.index,
-                  compIndex: comp.index || 1,
-                  compName: comp.name,
+                  compId: layerCompId,
+                  compName: layerCompName,
+                  parentCompName,
+                  isNested,
                   time: variation.time || 0,
                   timecode: this.formatTimecode(variation.time || 0, comp.frameRate || 30),
                   message: `${item.message} (в анимированном кадре)`,
@@ -168,8 +178,10 @@ export class BroadcastQCCore {
               layerId: layer.id,
               layerName: layer.name,
               layerIndex: layer.index,
-              compIndex: comp.index || 1,
-              compName: comp.name,
+              compId: layerCompId,
+              compName: layerCompName,
+              parentCompName,
+              isNested,
               time: layer.inPoint || 0,
               timecode: this.formatTimecode(layer.inPoint || 0, comp.frameRate || 30),
               message: spIssue.message,
@@ -202,8 +214,10 @@ export class BroadcastQCCore {
                   layerId: layer.id,
                   layerName: layer.name,
                   layerIndex: layer.index,
-                  compIndex: comp.index || 1,
-                  compName: comp.name,
+                  compId: layerCompId,
+                  compName: layerCompName,
+                  parentCompName,
+                  isNested,
                   time: state.checkTime,
                   timecode: this.formatTimecode(state.checkTime, comp.frameRate || 30),
                   message: `Выход за ${v.sideName} Safe Zone на ${v.overflowPx} px (в стабильном состоянии)`,
@@ -237,13 +251,14 @@ export class BroadcastQCCore {
       }
     }
 
-    const totalErrors = totalSpellingErrors + totalSafeZoneErrors + issues.filter(i => i.severity === 'error' && i.category === 'health').length;
-    const totalWarnings = totalTypographyWarnings + totalReadingWarnings + totalAIIssues;
+    const totalErrors = issues.filter(i => i.severity === 'error').length;
+    const totalWarnings = issues.filter(i => i.severity === 'warning').length;
+    const totalInfo = issues.filter(i => i.severity === 'info').length;
 
     let overallStatus = 'passed';
     if (totalErrors > 0) {
       overallStatus = 'error';
-    } else if (totalWarnings > 0) {
+    } else if (totalWarnings > 0 || totalInfo > 0) {
       overallStatus = 'warning';
     }
 
@@ -268,6 +283,7 @@ export class BroadcastQCCore {
         aiIssues: totalAIIssues,
         totalErrors,
         totalWarnings,
+        totalInfo,
         status: overallStatus
       },
       issues

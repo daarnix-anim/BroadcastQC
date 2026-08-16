@@ -26,7 +26,6 @@ export class TypographyLinter {
     const lines = text.split(/\r?\n/);
 
     // 1. Проверка повторяющихся слов (напр. "в в", "на на", "the the")
-    // Используем Unicode property escapes для корректной работы с кириллицей
     if (this.options.checkRepeats) {
       const words = [];
       const wordRegex = /[\p{L}]+/gu;
@@ -40,13 +39,16 @@ export class TypographyLinter {
           const between = text.slice(words[i].index + words[i].length, words[i + 1].index);
           // Если между словами только пробелы
           if (/^\s+$/.test(between)) {
+            const fullRepeatSnippet = text.slice(words[i].index, words[i + 1].index + words[i + 1].length);
             issues.push({
               type: 'typography',
               code: 'REPEATED_WORD',
+              word: fullRepeatSnippet,
               message: `Повторяющееся слово: «${words[i].word} ${words[i + 1].word}»`,
               suggestion: words[i].word,
+              suggestions: [words[i].word],
               index: words[i].index,
-              length: (words[i + 1].index + words[i + 1].length) - words[i].index,
+              length: fullRepeatSnippet.length,
               severity: 'warning'
             });
           }
@@ -62,8 +64,10 @@ export class TypographyLinter {
         issues.push({
           type: 'typography',
           code: 'SPACE_BEFORE_PUNCTUATION',
+          word: match[0],
           message: `Лишний пробел перед знаком препинания: «${match[0]}»`,
           suggestion: match[1],
+          suggestions: [match[1]],
           index: match.index,
           length: match[0].length,
           severity: 'warning'
@@ -76,8 +80,10 @@ export class TypographyLinter {
         issues.push({
           type: 'typography',
           code: 'MULTIPLE_SPACES',
+          word: match[0],
           message: 'Двойной или множественный пробел',
           suggestion: ' ',
+          suggestions: [' '],
           index: match.index,
           length: match[0].length,
           severity: 'info'
@@ -95,8 +101,10 @@ export class TypographyLinter {
           issues.push({
             type: 'typography',
             code: 'STRAIGHT_QUOTES',
+            word: match[0],
             message: `Используйте типографические кавычки « » вместо прямых "${match[1]}"`,
             suggestion: `«${match[1]}»`,
+            suggestions: [`«${match[1]}»`],
             index: match.index,
             length: match[0].length,
             severity: 'info'
@@ -113,8 +121,10 @@ export class TypographyLinter {
         issues.push({
           type: 'typography',
           code: 'HYPHEN_AS_DASH',
+          word: match[0],
           message: 'Используйте длинное тире «—» вместо дефиса «-» с пробелами',
-          suggestion: ' — ',
+          suggestion: `${match[1]}—${match[2]}`,
+          suggestions: [`${match[1]}—${match[2]}`],
           index: match.index,
           length: match[0].length,
           severity: 'info'
@@ -132,13 +142,16 @@ export class TypographyLinter {
           const lastWord = lastWordMatch[1].toLowerCase();
           if (this.ruPrepositions.has(lastWord)) {
             const wordIndexInText = charOffset + (lines[lineIndex].length - (lines[lineIndex].length - line.length + lastWordMatch[1].length));
+            const oldWord = lastWordMatch[1];
             issues.push({
               type: 'typography',
               code: 'HANGING_PREPOSITION',
-              message: `Висячий предлог «${lastWordMatch[1]}» на конце строки. Рекомендуется связать неразрывным пробелом.`,
-              suggestion: `${lastWordMatch[1]}\u00A0`,
+              word: oldWord,
+              message: `Висячий предлог «${oldWord}» на конце строки. Рекомендуется связать неразрывным пробелом.`,
+              suggestion: `${oldWord}\u00A0`,
+              suggestions: [`${oldWord}\u00A0`],
               index: wordIndexInText,
-              length: lastWordMatch[1].length,
+              length: oldWord.length,
               severity: 'warning'
             });
           }

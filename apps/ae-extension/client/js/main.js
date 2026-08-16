@@ -10,7 +10,7 @@ import { BROADCAST_PRESETS } from '../../packages/safe-zone/index.js';
 import { AIAgent } from '../../packages/ai/index.js';
 import { AutoUpdater } from '../../packages/updater/index.js';
 
-const APP_CURRENT_VERSION = '2.0.0';
+const APP_CURRENT_VERSION = '0.8.2';
 
 // ==========================================
 // 1. Global Error Boundary & Toast System
@@ -188,10 +188,11 @@ const btnRunIcon = document.getElementById('btnRunIcon');
 const btnRunText = document.getElementById('btnRunText');
 const btnExportReport = document.getElementById('btnExportReport');
 const chkSpelling = document.getElementById('chkSpelling');
+const chkOnlineSpeller = document.getElementById('chkOnlineSpeller');
 const chkTypography = document.getElementById('chkTypography');
-const chkReadingSpeed = document.getElementById('chkReadingSpeed');
-const chkHealth = document.getElementById('chkHealth');
 const chkSafeZone = document.getElementById('chkSafeZone');
+const chkScanNested = document.getElementById('chkScanNested');
+const chkScanEntireProject = document.getElementById('chkScanEntireProject');
 const chkUseAI = document.getElementById('chkUseAI');
 
 const statusDot = document.getElementById('statusDot');
@@ -205,22 +206,36 @@ const progressPercent = document.getElementById('progressPercent');
 const progressBarFill = document.getElementById('progressBarFill');
 const progressStepText = document.getElementById('progressStepText');
 
-const guidanceCard = document.getElementById('guidanceCard');
-const guidanceIcon = document.getElementById('guidanceIcon');
-const guidanceHeading = document.getElementById('guidanceHeading');
-const guidanceBody = document.getElementById('guidanceBody');
-
 const summarySection = document.getElementById('summarySection');
+const statBoxErrors = document.getElementById('statBoxErrors');
+const statBoxWarnings = document.getElementById('statBoxWarnings');
+const statBoxInfo = document.getElementById('statBoxInfo');
+const statBoxLayers = document.getElementById('statBoxLayers');
 const statErrors = document.getElementById('statErrors');
 const statWarnings = document.getElementById('statWarnings');
+const statInfo = document.getElementById('statInfo');
 const statLayers = document.getElementById('statLayers');
 const issuesContainer = document.getElementById('issuesContainer');
 const initialEmptyState = document.getElementById('initialEmptyState');
 
 const selectSafePreset = document.getElementById('selectSafePreset');
 const customMarginsGroup = document.getElementById('customMarginsGroup');
-const customMarginH = document.getElementById('customMarginH');
-const customMarginV = document.getElementById('customMarginV');
+const customMarginL = document.getElementById('customMarginL');
+const customMarginR = document.getElementById('customMarginR');
+const customMarginT = document.getElementById('customMarginT');
+const customMarginB = document.getElementById('customMarginB');
+
+const visualSafeBox = document.getElementById('visualSafeBox');
+const safeZoneDimensionsBadge = document.getElementById('safeZoneDimensionsBadge');
+const lblTopMargin = document.getElementById('lblTopMargin');
+const lblBottomMargin = document.getElementById('lblBottomMargin');
+const lblLeftMargin = document.getElementById('lblLeftMargin');
+const lblRightMargin = document.getElementById('lblRightMargin');
+
+const btnToggleSafeZoneOverlay = document.getElementById('btnToggleSafeZoneOverlay');
+const btnRemoveSafeZoneOverlay = document.getElementById('btnRemoveSafeZoneOverlay');
+const overlayBtnIcon = document.getElementById('overlayBtnIcon');
+const overlayBtnText = document.getElementById('overlayBtnText');
 
 const aiProviderSelect = document.getElementById('aiProviderSelect');
 const aiBaseUrl = document.getElementById('aiBaseUrl');
@@ -265,8 +280,15 @@ function init() {
   initSafeZoneUI();
   initAIUI();
   initUpdaterUI();
+  initSummaryFilterUI();
   initExtendScript();
   checkAEConnection(true);
+
+  // Default Yandex Speller to ON
+  if (chkOnlineSpeller) {
+    chkOnlineSpeller.checked = true;
+    qcCore.spellChecker.useOnlineSpeller = true;
+  }
 
   // Silent update check in background after 2.5s
   setTimeout(() => {
@@ -392,45 +414,141 @@ function initTabs() {
 }
 
 // ==========================================
-// 7. Safe Zone Settings UI
+// 7. Safe Zone Settings & Live Visual Overlay UI
 // ==========================================
 
+let isSafeZoneOverlayActiveInAE = false;
+
+function findPresetById(presetId) {
+  for (const key of Object.keys(BROADCAST_PRESETS)) {
+    if (BROADCAST_PRESETS[key].id === presetId) {
+      return BROADCAST_PRESETS[key];
+    }
+  }
+  return BROADCAST_PRESETS.EBU_R95_TITLE_SAFE;
+}
+
+function getEffectiveSafeZoneMargins() {
+  const val = selectSafePreset ? selectSafePreset.value : 'ebu_r95_title';
+  if (val === 'custom') {
+    return {
+      left: Number(customMarginL?.value || 5),
+      right: Number(customMarginR?.value || 5),
+      top: Number(customMarginT?.value || 5),
+      bottom: Number(customMarginB?.value || 5),
+      cutouts: []
+    };
+  }
+
+  const presetObj = findPresetById(val);
+  return {
+    ...presetObj.marginPercent,
+    cutouts: presetObj.cutouts || []
+  };
+}
+
+function updateSafeZoneVisualPreview() {
+  const val = selectSafePreset ? selectSafePreset.value : 'ebu_r95_title';
+  const margins = getEffectiveSafeZoneMargins();
+
+  if (safeZoneDimensionsBadge) {
+    if (val === 'custom') {
+      safeZoneDimensionsBadge.textContent = `Custom (${margins.left}%L, ${margins.right}%R, ${margins.top}%T, ${margins.bottom}%B)`;
+    } else {
+      const p = findPresetById(val);
+      safeZoneDimensionsBadge.textContent = p.name;
+    }
+  }
+
+  if (visualSafeBox) {
+    const widthPct = Math.max(10, 100 - (margins.left + margins.right));
+    const heightPct = Math.max(10, 100 - (margins.top + margins.bottom));
+    const leftPct = margins.left;
+    const topPct = margins.top;
+
+    visualSafeBox.style.width = `${widthPct}%`;
+    visualSafeBox.style.height = `${heightPct}%`;
+    visualSafeBox.style.left = `${leftPct}%`;
+    visualSafeBox.style.top = `${topPct}%`;
+  }
+
+  if (lblTopMargin) lblTopMargin.textContent = `${margins.top}%`;
+  if (lblBottomMargin) lblBottomMargin.textContent = `${margins.bottom}%`;
+  if (lblLeftMargin) lblLeftMargin.textContent = `${margins.left}%`;
+  if (lblRightMargin) lblRightMargin.textContent = `${margins.right}%`;
+}
+
 function initSafeZoneUI() {
-  selectSafePreset.addEventListener('change', () => {
+  updateSafeZoneVisualPreview();
+
+  selectSafePreset?.addEventListener('change', () => {
     const val = selectSafePreset.value;
     if (val === 'custom') {
-      customMarginsGroup.style.display = 'flex';
-      qcCore.safeZoneChecker.customMarginPercent = {
-        left: Number(customMarginH.value),
-        right: Number(customMarginH.value),
-        top: Number(customMarginV.value),
-        bottom: Number(customMarginV.value)
-      };
+      if (customMarginsGroup) customMarginsGroup.style.display = 'flex';
+      qcCore.safeZoneChecker.customMarginPercent = getEffectiveSafeZoneMargins();
       qcCore.safeZoneChecker.preset = null;
     } else {
-      customMarginsGroup.style.display = 'none';
+      if (customMarginsGroup) customMarginsGroup.style.display = 'none';
       qcCore.safeZoneChecker.customMarginPercent = null;
-      if (val === 'ebu_r95_title') qcCore.safeZoneChecker.preset = BROADCAST_PRESETS.EBU_R95_TITLE_SAFE;
-      if (val === 'ebu_r95_action') qcCore.safeZoneChecker.preset = BROADCAST_PRESETS.EBU_R95_ACTION_SAFE;
-      if (val === 'smpte_title_80') qcCore.safeZoneChecker.preset = BROADCAST_PRESETS.SMPTE_TITLE_SAFE_80;
-      if (val === 'smpte_action_90') qcCore.safeZoneChecker.preset = BROADCAST_PRESETS.SMPTE_ACTION_SAFE_90;
-      if (val === 'social_vertical_9_16') qcCore.safeZoneChecker.preset = BROADCAST_PRESETS.SOCIAL_VERTICAL_9_16;
+      qcCore.safeZoneChecker.preset = findPresetById(val);
+    }
+
+    updateSafeZoneVisualPreview();
+    if (isSafeZoneOverlayActiveInAE) {
+      applySafeZoneOverlayToAE(true);
     }
   });
 
-  const updateCustomMargins = () => {
+  const onCustomMarginInput = () => {
     if (selectSafePreset.value === 'custom') {
-      qcCore.safeZoneChecker.customMarginPercent = {
-        left: Number(customMarginH.value),
-        right: Number(customMarginH.value),
-        top: Number(customMarginV.value),
-        bottom: Number(customMarginV.value)
-      };
+      qcCore.safeZoneChecker.customMarginPercent = getEffectiveSafeZoneMargins();
+      updateSafeZoneVisualPreview();
+      if (isSafeZoneOverlayActiveInAE) {
+        applySafeZoneOverlayToAE(true);
+      }
     }
   };
 
-  customMarginH.addEventListener('input', updateCustomMargins);
-  customMarginV.addEventListener('input', updateCustomMargins);
+  customMarginL?.addEventListener('input', onCustomMarginInput);
+  customMarginR?.addEventListener('input', onCustomMarginInput);
+  customMarginT?.addEventListener('input', onCustomMarginInput);
+  customMarginB?.addEventListener('input', onCustomMarginInput);
+
+  // Toggle Red Overlay Guide Layer in After Effects
+  btnToggleSafeZoneOverlay?.addEventListener('click', () => {
+    applySafeZoneOverlayToAE(!isSafeZoneOverlayActiveInAE);
+  });
+
+  btnRemoveSafeZoneOverlay?.addEventListener('click', () => {
+    applySafeZoneOverlayToAE(false);
+  });
+}
+
+function applySafeZoneOverlayToAE(enable) {
+  const margins = getEffectiveSafeZoneMargins();
+  const marginsJson = JSON.stringify(margins);
+
+  csInterface.evalScript(`BroadcastQCHost.toggleSafeZoneOverlay(${JSON.stringify(marginsJson)}, ${enable})`, (res) => {
+    try {
+      const data = JSON.parse(res);
+      if (data && data.success) {
+        isSafeZoneOverlayActiveInAE = !!data.active;
+        if (isSafeZoneOverlayActiveInAE) {
+          if (overlayBtnIcon) overlayBtnIcon.textContent = '👁️';
+          if (overlayBtnText) overlayBtnText.textContent = 'Скрыть красные границы в AE';
+          showToast(`🚨 Красные границы Safe Zone включены в After Effects (${margins.left}%L, ${margins.top}%T)`, 'success', 3500);
+        } else {
+          if (overlayBtnIcon) overlayBtnIcon.textContent = '🚨';
+          if (overlayBtnText) overlayBtnText.textContent = 'Показать красные границы в AE';
+          showToast('Границы Safe Zone скрыты в After Effects', 'info', 2500);
+        }
+      } else {
+        showToast(`Ошибка: ${data?.error || 'Не удалось обновить оверлей в AE'}`, 'error');
+      }
+    } catch (e) {
+      showToast('Ожидание подключения к After Effects...', 'warning');
+    }
+  });
 }
 
 // ==========================================
@@ -663,22 +781,36 @@ function closeUpdateModal() {
 // 11. Main Analysis Pipeline (Run QC)
 // ==========================================
 
+chkScanEntireProject?.addEventListener('change', () => {
+  if (chkScanEntireProject.checked) {
+    if (chkScanNested) chkScanNested.disabled = true;
+    btnRunText.textContent = 'Запустить проверку всего проекта';
+  } else {
+    if (chkScanNested) chkScanNested.disabled = false;
+    btnRunText.textContent = 'Запустить проверку композиции';
+  }
+});
+
 btnRunQC.addEventListener('click', async () => {
+  const isProjectScan = chkScanEntireProject && chkScanEntireProject.checked;
+  const isNestedScan = chkScanNested ? chkScanNested.checked : true;
+
   btnRunQC.disabled = true;
   btnRunIcon.innerHTML = '<span class="spinner"></span>';
-  btnRunText.textContent = 'Анализ композиции...';
+  btnRunText.textContent = isProjectScan ? 'Анализ проекта...' : 'Анализ композиции...';
 
   // Apply options to engine
-  qcCore.options.checkSpelling = chkSpelling.checked;
-  qcCore.options.checkSafeZone = chkSafeZone.checked;
-  qcCore.options.checkReadingSpeed = chkReadingSpeed.checked;
-  qcCore.options.checkProjectHealth = chkHealth.checked;
-  qcCore.options.useAI = chkUseAI.checked;
-  qcCore.spellChecker.checkTypography = chkTypography.checked;
+  qcCore.options.checkSpelling = chkSpelling ? chkSpelling.checked : true;
+  qcCore.options.checkSafeZone = chkSafeZone ? chkSafeZone.checked : false;
+  qcCore.options.checkReadingSpeed = false;
+  qcCore.options.checkProjectHealth = false;
+  qcCore.options.useAI = chkUseAI ? chkUseAI.checked : false;
+  qcCore.spellChecker.checkTypography = chkTypography ? chkTypography.checked : true;
+  qcCore.spellChecker.useOnlineSpeller = chkOnlineSpeller ? chkOnlineSpeller.checked : false;
 
-  updateProgress(15, '🔍 [1/4] Сканирование таймлайна After Effects (слои, ключи, геометрия)...');
+  const defaultBtnText = isProjectScan ? 'Запустить проверку всего проекта' : 'Запустить проверку композиции';
 
-  csInterface.evalScript('BroadcastQCHost.scanActiveComposition(5)', async (rawResult) => {
+  const onScanComplete = async (rawResult) => {
     try {
       if (!rawResult || rawResult === 'EvalScript error.') {
         throw new Error('ExtendScript не ответил. Перезапустите панель или проверьте открытую композицию в AE.');
@@ -689,20 +821,12 @@ btnRunQC.addEventListener('click', async () => {
       if (!scanData || !scanData.success) {
         btnRunQC.disabled = false;
         btnRunIcon.textContent = '⚡';
-        btnRunText.textContent = 'Запустить проверку композиции';
+        btnRunText.textContent = defaultBtnText;
         hideProgress();
         playChime(false);
 
         const errMsg = scanData ? scanData.error : 'Не удалось получить данные композиции из After Effects';
         showToast(errMsg, 'warning', 5000);
-
-        showGuidance('attention', 'Требуется действие в After Effects:', `
-          ${escapeHTML(errMsg)}<br><br>
-          <b>Что сделать:</b><br>
-          1. Откройте нужный проект <code>.aep</code>.<br>
-          2. Дважды кликните по композиции на панели Project или откройте её вкладку на таймлайне.<br>
-          3. Нажмите кнопку <b>«Запустить проверку композиции»</b> снова.
-        `);
         return;
       }
 
@@ -710,28 +834,22 @@ btnRunQC.addEventListener('click', async () => {
       if (!scanData.layers || scanData.layers.length === 0) {
         btnRunQC.disabled = false;
         btnRunIcon.textContent = '⚡';
-        btnRunText.textContent = 'Запустить проверку композиции';
-        updateProgress(100, 'В композиции не найдено текстовых слоёв.');
+        btnRunText.textContent = defaultBtnText;
+        updateProgress(100, 'В композициях не найдено текстовых слоёв.');
         hideProgress();
         playChime(true);
 
         const compName = scanData.composition?.name || 'Композиция';
-        showToast(`В композиции «${compName}» нет текстовых слоёв`, 'info', 4000);
+        showToast(`В «${compName}» не найдено текстовых слоёв`, 'info', 4000);
 
         summarySection.style.display = 'none';
         btnExportReport.style.display = 'none';
         issuesContainer.innerHTML = `
           <div class="empty-state">
-            ℹ️ В активной композиции <b>«${escapeHTML(compName)}»</b> (всего слоёв: ${scanData.totalCompLayers || 0}) не найдено ни одного текстового слоя.<br><br>
+            ℹ️ В <b>«${escapeHTML(compName)}»</b> (всего слоёв: ${scanData.totalCompLayers || 0}) не найдено ни одного текстового слоя.<br><br>
             Добавьте текстовый слой на таймлайн (<b>Ctrl+T</b> / <b>Cmd+T</b>) или откройте композицию с титрами и повторите анализ.
           </div>
         `;
-
-        showGuidance('attention', 'Что делать дальше:', `
-          В текущей композиции <b>«${escapeHTML(compName)}»</b> отсутствуют текстовые слои.<br>
-          • Создайте титры или переключитесь на композицию с текстом.<br>
-          • После этого нажмите <b>«⚡ Запустить проверку композиции»</b>.
-        `);
         return;
       }
 
@@ -755,97 +873,218 @@ btnRunQC.addEventListener('click', async () => {
 
       btnRunQC.disabled = false;
       btnRunIcon.textContent = '⚡';
-      btnRunText.textContent = 'Запустить проверку композиции';
+      btnRunText.textContent = defaultBtnText;
       hideProgress();
 
       renderReport(report);
 
       const errCount = report.summary.totalErrors;
       const warnCount = report.summary.totalWarnings;
+      const infoCount = report.summary.totalInfo || 0;
       const layerCount = report.summary.totalLayersChecked;
 
-      if (errCount === 0 && warnCount === 0) {
+      if (errCount === 0 && warnCount === 0 && infoCount === 0) {
         showToast(`✅ Проверка завершена: все ${layerCount} слоёв соответствуют ТВ-стандартам!`, 'success', 4000);
       } else {
-        showToast(`Проверка завершена: ${layerCount} слоёв, ${errCount} опечаток/ошибок, ${warnCount} предупреждений`, errCount > 0 ? 'error' : 'warning', 5000);
+        showToast(`Проверено слоёв: ${layerCount} (ошибок: ${errCount}, предупр: ${warnCount}, замеч: ${infoCount})`, errCount > 0 ? 'error' : 'warning', 5000);
       }
 
     } catch (err) {
       console.error('QC execution error:', err);
       btnRunQC.disabled = false;
       btnRunIcon.textContent = '⚡';
-      btnRunText.textContent = 'Запустить проверку композиции';
+      btnRunText.textContent = defaultBtnText;
       hideProgress();
       playChime(false);
 
       showToast(`Ошибка анализа: ${err.message}`, 'error', 5000);
       showGlobalError(`Ошибка при выполнении анализа: ${err.stack || err.message}`);
     }
-  });
+  };
+
+  if (isProjectScan) {
+    updateProgress(15, '🔍 [1/4] Поиск и сбор всех композиций проекта .aep...');
+    csInterface.evalScript('BroadcastQCHost.scanEntireProject(5)', onScanComplete);
+  } else {
+    updateProgress(15, `🔍 [1/4] Сканирование композиции (${isNestedScan ? 'включая вложенные Pre-comps' : 'только активная'})...`);
+    csInterface.evalScript(`BroadcastQCHost.scanActiveComposition(5, ${isNestedScan})`, onScanComplete);
+  }
 });
 
 // ==========================================
-// 12. Render QC Report & Guidance
+// 12. Interactive Summary Filtering & QC Report Rendering
 // ==========================================
+
+let currentIssueFilter = 'all'; // 'all', 'error', 'warning', 'info'
+
+function initSummaryFilterUI() {
+  statBoxErrors?.addEventListener('click', () => {
+    currentIssueFilter = (currentIssueFilter === 'error') ? 'all' : 'error';
+    updateFilterVisuals();
+    renderFilteredIssues();
+  });
+
+  statBoxWarnings?.addEventListener('click', () => {
+    currentIssueFilter = (currentIssueFilter === 'warning') ? 'all' : 'warning';
+    updateFilterVisuals();
+    renderFilteredIssues();
+  });
+
+  statBoxInfo?.addEventListener('click', () => {
+    currentIssueFilter = (currentIssueFilter === 'info') ? 'all' : 'info';
+    updateFilterVisuals();
+    renderFilteredIssues();
+  });
+
+  statBoxLayers?.addEventListener('click', () => {
+    currentIssueFilter = 'all';
+    updateFilterVisuals();
+    renderFilteredIssues();
+  });
+}
+
+function updateFilterVisuals() {
+  statBoxErrors?.classList.toggle('active', currentIssueFilter === 'error');
+  statBoxWarnings?.classList.toggle('active', currentIssueFilter === 'warning');
+  statBoxInfo?.classList.toggle('active', currentIssueFilter === 'info');
+  statBoxLayers?.classList.toggle('active', currentIssueFilter === 'all');
+}
 
 function renderReport(report) {
   summarySection.style.display = 'block';
   btnExportReport.style.display = 'inline-flex';
 
-  statErrors.textContent = report.summary.totalErrors;
-  statWarnings.textContent = report.summary.totalWarnings;
-  statLayers.textContent = report.summary.totalLayersChecked;
+  statErrors.textContent = report.summary.totalErrors || 0;
+  statWarnings.textContent = report.summary.totalWarnings || 0;
+  if (statInfo) statInfo.textContent = report.summary.totalInfo || 0;
+  statLayers.textContent = report.summary.totalLayersChecked || 0;
+
+  currentIssueFilter = 'all';
+  updateFilterVisuals();
+  renderFilteredIssues();
+}
+
+function renderWordDiff(word, suggestion) {
+  if (!word) return '';
+  if (!suggestion) return `<span class="err-word-highlight">${escapeHTML(word)}</span>`;
+
+  // Find common prefix
+  let start = 0;
+  while (start < word.length && start < suggestion.length && word[start].toLowerCase() === suggestion[start].toLowerCase()) {
+    start++;
+  }
+
+  // Find common suffix
+  let wordEnd = word.length - 1;
+  let suggEnd = suggestion.length - 1;
+  while (wordEnd >= start && suggEnd >= start && word[wordEnd].toLowerCase() === suggestion[suggEnd].toLowerCase()) {
+    wordEnd--;
+    suggEnd--;
+  }
+
+  const prefix = word.slice(0, start);
+  const diffErr = word.slice(start, wordEnd + 1);
+  const suffix = word.slice(wordEnd + 1);
+
+  if (!diffErr) {
+    return `<span class="err-word-highlight">${escapeHTML(word)}</span>`;
+  }
+
+  return `${escapeHTML(prefix)}<span class="err-char-highlight" title="Ошибочная буква/символ">${escapeHTML(diffErr)}</span>${escapeHTML(suffix)}`;
+}
+
+function renderFilteredIssues() {
+  if (!lastQCReport) return;
 
   issuesContainer.innerHTML = '';
+  const allIssues = lastQCReport.issues || [];
+  const compName = lastQCReport.composition?.name || 'Композиция';
 
-  const totalIssues = report.issues.length;
-  const compName = report.composition?.name || 'Композиция';
-
-  if (totalIssues === 0) {
+  if (allIssues.length === 0) {
     issuesContainer.innerHTML = `
       <div class="empty-state" style="color: var(--success); font-weight: 600; border-color: var(--success-border); background: var(--success-bg);">
-        ✓ Замечаний не обнаружено! Все ${report.summary.totalLayersChecked} слоёв композиции «${escapeHTML(compName)}» полностью соответствуют broadcast-стандартам.
+        ✓ Замечаний не обнаружено! Все ${lastQCReport.summary.totalLayersChecked} слоёв композиции «${escapeHTML(compName)}» полностью соответствуют broadcast-стандартам.
       </div>
     `;
-
-    showGuidance('clean', '🎉 Проект готов к эфиру и рендеру!', `
-      Все <b>${report.summary.totalLayersChecked}</b> текстовых слоёв проверены (орфография, ТВ-типографика, Safe Zone, скорость чтения и Guide-слои).<br>
-      • Вы можете экспортировать официальный паспорт контроля качества перед сдачей клиенту (кнопка <b>«📄 Экспорт отчёта»</b> выше).
-    `);
     return;
   }
 
-  // Guidance for issues found
-  showGuidance('attention', '💡 Что делать дальше:', `
-    В композиции <b>«${escapeHTML(compName)}»</b> найдено ${totalIssues} ${declension(totalIssues, ['замечание', 'замечания', 'замечаний'])}:<br>
-    <ul class="guidance-list">
-      <li><b>Кликните по карточке</b> — After Effects мгновенно переместит курсор на таймлайне и выделит проблемный слой.</li>
-      <li>Нажмите <b>«✨ Исправить в слое»</b> — опечатка заменится прямо в After Effects с сохранением цвета, размера и шрифта.</li>
-      <li>Нажмите <b>«+ В словарь»</b> — если слово или бренд является верным, чтобы исключить его из последующих проверок.</li>
-      <li>Нажмите <b>«📄 Экспорт отчёта»</b> — для сохранения паспорта качества в HTML.</li>
-    </ul>
-  `);
+  let filtered = allIssues;
+  if (currentIssueFilter === 'error') {
+    filtered = allIssues.filter(i => i.severity === 'error');
+  } else if (currentIssueFilter === 'warning') {
+    filtered = allIssues.filter(i => i.severity === 'warning');
+  } else if (currentIssueFilter === 'info') {
+    filtered = allIssues.filter(i => i.severity === 'info');
+  }
 
-  report.issues.forEach((issue, issueIdx) => {
+  if (filtered.length === 0) {
+    let filterName = 'замечаний';
+    if (currentIssueFilter === 'error') filterName = 'ошибок';
+    if (currentIssueFilter === 'warning') filterName = 'предупреждений';
+    if (currentIssueFilter === 'info') filterName = 'замечаний (типографика/подсказки)';
+
+    issuesContainer.innerHTML = `
+      <div class="empty-state">
+        ℹ️ В композиции «${escapeHTML(compName)}» не найдено <b>${filterName}</b>.<br><br>
+        <button class="btn-secondary" id="btnResetFilter" style="margin-top: 6px;">Показать все замечания</button>
+      </div>
+    `;
+    document.getElementById('btnResetFilter')?.addEventListener('click', () => {
+      currentIssueFilter = 'all';
+      updateFilterVisuals();
+      renderFilteredIssues();
+    });
+    return;
+  }
+
+  filtered.forEach((issue) => {
     const card = document.createElement('div');
     card.className = `issue-card ${issue.severity === 'warning' ? 'warning' : (issue.severity === 'info' ? 'info' : '')}`;
 
-    let icon = '🔴';
-    if (issue.severity === 'warning') icon = '🟡';
-    if (issue.severity === 'info') icon = 'ℹ️';
+    let messageHTML = '';
+    if (issue.category === 'spelling' && issue.word) {
+      const diffHTML = renderWordDiff(issue.word, issue.suggestion);
+      messageHTML = `Опечатка: <b>${diffHTML}</b>${issue.suggestion ? ` &rarr; <span class="sugg-word-highlight">${escapeHTML(issue.suggestion)}</span>` : ''}`;
+    } else {
+      messageHTML = escapeHTML(issue.message);
+    }
+
+    let compBadgeHTML = '';
+    if (issue.parentCompName) {
+      compBadgeHTML = `<span class="comp-source-badge" title="Вложенная композиция: ${escapeHTML(issue.parentCompName)} &rarr; ${escapeHTML(issue.compName)}">📁 ${escapeHTML(issue.compName)}</span>`;
+    } else if (lastQCReport.composition?.name.startsWith('Весь проект') && issue.compName) {
+      compBadgeHTML = `<span class="comp-source-badge" title="Композиция: ${escapeHTML(issue.compName)}">📁 ${escapeHTML(issue.compName)}</span>`;
+    }
 
     let actionsHTML = '';
     
-    // 1-Click Auto-Fix Button
+    // 1-Click Auto-Fix Button (Light Green Tint)
     if (issue.suggestion && (issue.category === 'spelling' || issue.category === 'typography' || issue.category === 'ai-logic')) {
+      const fixLabel = issue.word ? `✨ Исправить на «${escapeHTML(issue.suggestion)}»` : '✨ Исправить в слое';
       actionsHTML += `
         <button class="btn-mini auto-fix" data-old="${escapeHTML(issue.word || '')}" data-new="${escapeHTML(issue.suggestion)}">
-          ✨ Исправить в слое
+          ${fixLabel}
         </button>
       `;
+
+      // Alternative suggestions Dropdown Select
+      if (Array.isArray(issue.suggestions) && issue.suggestions.length > 1) {
+        const alts = issue.suggestions.filter(s => s !== issue.suggestion);
+        if (alts.length > 0) {
+          actionsHTML += `
+            <select class="alt-select-dropdown" data-old="${escapeHTML(issue.word || '')}" title="Выбрать другой вариант замены">
+              <option value="" disabled selected>Другие варианты (${alts.length})...</option>
+              ${alts.map(altWord => `
+                <option value="${escapeHTML(altWord)}">${escapeHTML(altWord)}</option>
+              `).join('')}
+            </select>
+          `;
+        }
+      }
     }
 
-    // Add to dictionary Button
+    // Add to dictionary Button (Compact)
     if (issue.category === 'spelling' && issue.word) {
       actionsHTML += `
         <button class="btn-mini add-dict" data-word="${escapeHTML(issue.word)}">+ В словарь</button>
@@ -854,21 +1093,23 @@ function renderReport(report) {
 
     card.innerHTML = `
       <div class="issue-header">
-        <div class="issue-title">
-          <span>${icon}</span>
-          <span>${escapeHTML(issue.layerName)}</span>
+        <div class="issue-layer-badge">
+          <span class="layer-num-badge">#${issue.layerIndex}</span>
+          ${compBadgeHTML}
+          <span class="layer-title-text" title="${escapeHTML(issue.layerName)}">${escapeHTML(issue.layerName)}</span>
         </div>
-        <div class="issue-timecode" title="Кликните для перехода в After Effects">⏱ ${escapeHTML(issue.timecode)}</div>
+        <div class="issue-timecode" title="Кликните для перехода на таймлайн">⏱ ${escapeHTML(issue.timecode)}</div>
       </div>
-      <div class="issue-message">${escapeHTML(issue.message)}</div>
+      <div class="issue-message">${messageHTML}</div>
       ${actionsHTML ? `<div class="issue-actions">${actionsHTML}</div>` : ''}
     `;
 
     // Click on card -> Navigate in After Effects
     card.addEventListener('click', (e) => {
-      if (e.target.closest('button')) return;
-      csInterface.evalScript(`BroadcastQCHost.navigateToLayer(${issue.layerIndex}, ${issue.time})`, (navRes) => {
-        showToast(`Переход к слою «${issue.layerName}» (${issue.timecode})`, 'info', 2000);
+      if (e.target.closest('button') || e.target.closest('select')) return;
+      csInterface.evalScript(`BroadcastQCHost.navigateToLayer(${issue.layerIndex}, ${issue.time}, ${issue.compId || 0})`, (navRes) => {
+        const locationDesc = issue.compName ? `[${issue.compName}] ` : '';
+        showToast(`Переход: ${locationDesc}слой #${issue.layerIndex} «${issue.layerName}» (${issue.timecode})`, 'info', 2000);
       });
     });
 
@@ -884,16 +1125,16 @@ function renderReport(report) {
         const escapedNew = JSON.stringify(newVal);
 
         autoFixBtn.disabled = true;
-        autoFixBtn.textContent = '⏳ Исправление...';
+        autoFixBtn.textContent = '⏳...';
 
-        csInterface.evalScript(`BroadcastQCHost.applyTextFix(${issue.layerIndex}, ${escapedOld}, ${escapedNew})`, (res) => {
+        csInterface.evalScript(`BroadcastQCHost.applyTextFix(${issue.layerIndex}, ${escapedOld}, ${escapedNew}, ${issue.compId || 0})`, (res) => {
           try {
             const data = JSON.parse(res);
             if (data && data.success) {
               autoFixBtn.textContent = '✓ Исправлено';
               autoFixBtn.style.color = 'var(--success)';
               autoFixBtn.style.borderColor = 'var(--success-border)';
-              showToast(`Текст в слое «${issue.layerName}» успешно исправлен на «${newVal}»`, 'success', 3000);
+              showToast(`Слой #${issue.layerIndex}: «${oldVal}» исправлено на «${newVal}»`, 'success', 3000);
             } else {
               autoFixBtn.disabled = false;
               autoFixBtn.textContent = '✨ Исправить в слое';
@@ -902,6 +1143,41 @@ function renderReport(report) {
           } catch (err) {
             autoFixBtn.disabled = false;
             autoFixBtn.textContent = '✨ Исправить в слое';
+            showToast('Ошибка при отправке команды в After Effects', 'error');
+          }
+        });
+      });
+    }
+
+    // Alternative select dropdown handler
+    const altSelect = card.querySelector('.alt-select-dropdown');
+    if (altSelect) {
+      altSelect.addEventListener('change', (e) => {
+        e.stopPropagation();
+        const oldVal = altSelect.getAttribute('data-old');
+        const newVal = altSelect.value;
+        if (!newVal) return;
+
+        const escapedOld = JSON.stringify(oldVal);
+        const escapedNew = JSON.stringify(newVal);
+
+        altSelect.disabled = true;
+
+        csInterface.evalScript(`BroadcastQCHost.applyTextFix(${issue.layerIndex}, ${escapedOld}, ${escapedNew}, ${issue.compId || 0})`, (res) => {
+          try {
+            const data = JSON.parse(res);
+            if (data && data.success) {
+              if (autoFixBtn) {
+                autoFixBtn.textContent = `✓ «${newVal}»`;
+                autoFixBtn.style.color = 'var(--success)';
+              }
+              showToast(`Слой #${issue.layerIndex}: заменено на «${newVal}»`, 'success', 3000);
+            } else {
+              altSelect.disabled = false;
+              showToast(`Ошибка автозамены: ${data?.error || 'Не удалось обновить слой'}`, 'error');
+            }
+          } catch (err) {
+            altSelect.disabled = false;
             showToast('Ошибка при отправке команды в After Effects', 'error');
           }
         });
@@ -919,7 +1195,7 @@ function renderReport(report) {
         renderDictionaryTags();
         addDictBtn.textContent = '✓ В словаре';
         addDictBtn.disabled = true;
-        showToast(`Слово «${wordToAdd}» добавлено в словарь исключений`, 'success', 2500);
+        showToast(`Слово «${wordToAdd}» добавлено в словарь`, 'success', 2500);
       });
     }
 

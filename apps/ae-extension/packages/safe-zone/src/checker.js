@@ -1,38 +1,136 @@
 /**
- * Safe Zone Checker for Broadcast and Motion Graphics QC
- * Validates layer bounding boxes against standard and custom TV safe zones.
+ * Safe Zone Checker for Broadcast and Social Media QC
+ * Validates layer bounding boxes against standard TV and complex Social Media Safe Zones
+ * (Instagram Reels/Stories, TikTok, VK Клипы/Истории, YouTube Shorts, Facebook Reels).
  */
 
 export const BROADCAST_PRESETS = {
+  // --- Соцсети и вертикальные форматы (Reels, TikTok, VK, Shorts) ---
+  INSTAGRAM_REELS_9_16: {
+    id: 'instagram_reels_9_16',
+    name: 'Instagram Reels (9:16 - 1080x1920)',
+    description: 'Интерфейс Instagram Reels: верхняя шапка (камера/аудио), нижний блок (автор, описание, музыка, CTA) и правый столбец кнопок (лайк, комменты, репост)',
+    marginPercent: { top: 13, bottom: 23, left: 6, right: 16 },
+    cutouts: [
+      { id: 'top_header', name: 'Шапка Reels (камера/аудио)', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 12 },
+      { id: 'bottom_caption', name: 'Описание, автор, звук и CTA', leftPct: 0, rightPct: 100, topPct: 77, bottomPct: 100 },
+      { id: 'right_actions', name: 'Боковые кнопки (лайк, комменты, репост, аудио)', leftPct: 84, rightPct: 100, topPct: 44, bottomPct: 80 }
+    ]
+  },
+  INSTAGRAM_STORIES_9_16: {
+    id: 'instagram_stories_9_16',
+    name: 'Instagram Stories (9:16 - 1080x1920)',
+    description: 'Интерфейс Instagram Stories: индикаторы историй сверху и строка ответа/реакций снизу',
+    marginPercent: { top: 14, bottom: 14, left: 6, right: 6 },
+    cutouts: [
+      { id: 'top_header', name: 'Индикаторы историй и профиль', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 14 },
+      { id: 'bottom_reply', name: 'Поле ответа и реакции', leftPct: 0, rightPct: 100, topPct: 86, bottomPct: 100 }
+    ]
+  },
+  TIKTOK_9_16: {
+    id: 'tiktok_9_16',
+    name: 'TikTok Video (9:16 - 1080x1920)',
+    description: 'Интерфейс TikTok: верхние вкладки (Подписки/Рекомендации/Поиск), нижний блок (описание, хэштеги, виниловый диск музыки) и правый блок (аватар+, лайк, комменты, закладки, поделиться)',
+    marginPercent: { top: 9, bottom: 22, left: 6, right: 16 },
+    cutouts: [
+      { id: 'top_header', name: 'Вкладки и поиск TikTok', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 9 },
+      { id: 'bottom_caption', name: 'Описание, хэштеги и виниловый диск', leftPct: 0, rightPct: 100, topPct: 78, bottomPct: 100 },
+      { id: 'right_actions', name: 'Боковые кнопки (аватар, лайк, комменты, закладки, репост)', leftPct: 84, rightPct: 100, topPct: 40, bottomPct: 82 }
+    ]
+  },
+  VK_CLIPS_9_16: {
+    id: 'vk_clips_9_16',
+    name: 'ВКонтакте Клипы (9:16 - 1080x1920)',
+    description: 'Интерфейс VK Клипы: верхнее меню поиска/закрытия, блок описания и музыки снизу, правый столбец кнопок взаимодействия',
+    marginPercent: { top: 11, bottom: 22, left: 6, right: 15 },
+    cutouts: [
+      { id: 'top_header', name: 'Шапка VK Клипов', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 11 },
+      { id: 'bottom_caption', name: 'Описание, музыка и товары', leftPct: 0, rightPct: 100, topPct: 78, bottomPct: 100 },
+      { id: 'right_actions', name: 'Боковые кнопки (лайк, комменты, репост, закладка, звук)', leftPct: 85, rightPct: 100, topPct: 44, bottomPct: 82 }
+    ]
+  },
+  VK_STORIES_9_16: {
+    id: 'vk_stories_9_16',
+    name: 'ВКонтакте Истории (9:16 - 1080x1920)',
+    description: 'Интерфейс VK Истории: индикаторы сверху и поле ответа снизу',
+    marginPercent: { top: 12, bottom: 13, left: 6, right: 6 },
+    cutouts: [
+      { id: 'top_header', name: 'Индикаторы и автор', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 12 },
+      { id: 'bottom_reply', name: 'Поле ответа и кнопка «Поделиться»', leftPct: 0, rightPct: 100, topPct: 87, bottomPct: 100 }
+    ]
+  },
+  YOUTUBE_SHORTS_9_16: {
+    id: 'youtube_shorts_9_16',
+    name: 'YouTube Shorts (9:16 - 1080x1920)',
+    description: 'Интерфейс YouTube Shorts: верхняя панель поиска/камеры, нижний блок канала/подписки/названия и правый блок (лайк, дизлайк, комменты, ремикс)',
+    marginPercent: { top: 10, bottom: 21, left: 6, right: 15 },
+    cutouts: [
+      { id: 'top_header', name: 'Поиск и меню Shorts', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 10 },
+      { id: 'bottom_caption', name: 'Канал, кнопка «Подписаться» и звук', leftPct: 0, rightPct: 100, topPct: 79, bottomPct: 100 },
+      { id: 'right_actions', name: 'Кнопки (лайк, дизлайк, комменты, поделиться, звук)', leftPct: 85, rightPct: 100, topPct: 42, bottomPct: 82 }
+    ]
+  },
+  FACEBOOK_REELS_9_16: {
+    id: 'facebook_reels_9_16',
+    name: 'Facebook Reels & Stories (9:16 - 1080x1920)',
+    description: 'Интерфейс Facebook Reels: верхний заголовок, нижнее описание с CTA и правые кнопки реакций',
+    marginPercent: { top: 11, bottom: 21, left: 6, right: 15 },
+    cutouts: [
+      { id: 'top_header', name: 'Шапка Facebook Reels', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 11 },
+      { id: 'bottom_caption', name: 'Описание и кнопка действия', leftPct: 0, rightPct: 100, topPct: 79, bottomPct: 100 },
+      { id: 'right_actions', name: 'Кнопки реакций (лайк, комменты, репост)', leftPct: 85, rightPct: 100, topPct: 43, bottomPct: 82 }
+    ]
+  },
+  SOCIAL_UNIVERSAL_9_16: {
+    id: 'social_universal_9_16',
+    name: 'Универсальный Social 9:16 (All-in-One Safe)',
+    description: 'Максимально безопасная область для одновременной публикации в Reels, TikTok, VK, Shorts и Stories без перекрытия любыми элементами UI',
+    marginPercent: { top: 14, bottom: 24, left: 6, right: 16 },
+    cutouts: [
+      { id: 'top_header', name: 'Общая верхняя зона UI', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 14 },
+      { id: 'bottom_caption', name: 'Общая нижняя зона UI (описание, звук, кнопки)', leftPct: 0, rightPct: 100, topPct: 76, bottomPct: 100 },
+      { id: 'right_actions', name: 'Общая боковая зона кнопок взаимодействия', leftPct: 84, rightPct: 100, topPct: 40, bottomPct: 82 }
+    ]
+  },
+
+  // --- Ленты и другие форматы соцсетей ---
+  INSTAGRAM_FEED_4_5: {
+    id: 'instagram_feed_4_5',
+    name: 'Instagram / VK Feed (4:5 Portrait - 1080x1350)',
+    description: 'Портретный формат ленты соцсетей',
+    marginPercent: { top: 6, bottom: 8, left: 6, right: 6 }
+  },
+  SQUARE_1_1: {
+    id: 'square_1_1',
+    name: 'Квадратный формат (1:1 - 1080x1080)',
+    description: 'Квадратные посты в ленте соцсетей и маркетплейсах',
+    marginPercent: { top: 5, bottom: 5, left: 5, right: 5 }
+  },
+
+  // --- ТВ и классические вещательные стандарты ---
   EBU_R95_TITLE_SAFE: {
     id: 'ebu_r95_title',
-    name: 'EBU R95 Title Safe (90%)',
+    name: 'EBU R95 Title Safe (90% - ТВ 16:9)',
     description: 'Европейский вещательный стандарт Title Safe (5% отступ с каждой стороны)',
     marginPercent: { top: 5, bottom: 5, left: 5, right: 5 }
   },
   EBU_R95_ACTION_SAFE: {
     id: 'ebu_r95_action',
-    name: 'EBU R95 Action Safe (93%)',
+    name: 'EBU R95 Action Safe (93% - ТВ 16:9)',
     description: 'Европейский вещательный стандарт Action Safe (3.5% отступ с каждой стороны)',
     marginPercent: { top: 3.5, bottom: 3.5, left: 3.5, right: 3.5 }
   },
   SMPTE_TITLE_SAFE_80: {
     id: 'smpte_title_80',
-    name: 'SMPTE RP 218 Title Safe (80%)',
+    name: 'SMPTE RP 218 Title Safe (80% - ТВ)',
     description: 'Классический стандарт для эфирного ТВ (10% отступ)',
     marginPercent: { top: 10, bottom: 10, left: 10, right: 10 }
   },
   SMPTE_ACTION_SAFE_90: {
     id: 'smpte_action_90',
-    name: 'SMPTE RP 218 Action Safe (90%)',
+    name: 'SMPTE RP 218 Action Safe (90% - ТВ)',
     description: 'Классический стандарт Action Safe (5% отступ)',
     marginPercent: { top: 5, bottom: 5, left: 5, right: 5 }
-  },
-  SOCIAL_VERTICAL_9_16: {
-    id: 'social_vertical_9_16',
-    name: 'Social Vertical 9:16 (UI Safe)',
-    description: 'Безопасная зона для вертикальных видео (учет элементов интерфейса соцсетей)',
-    marginPercent: { top: 12, bottom: 22, left: 8, right: 15 }
   }
 };
 
@@ -79,6 +177,7 @@ export class SafeZoneChecker {
 
   /**
    * Проверка AABB прямоугольника слоя на выход за границы Safe Zone
+   * и перекрытие сложных UI-элементов соцсетей
    */
   check(compAABB, compWidth, compHeight) {
     if (!compAABB || !compWidth || !compHeight) {
@@ -136,6 +235,39 @@ export class SafeZoneChecker {
       });
     }
 
+    // 5. Проверка специализированных вырезов интерфейса соцсетей (Complex UI Cutouts)
+    if (this.preset && Array.isArray(this.preset.cutouts)) {
+      for (const cutout of this.preset.cutouts) {
+        const cLeft = (compWidth * (cutout.leftPct || 0)) / 100;
+        const cRight = (compWidth * (cutout.rightPct || 100)) / 100;
+        const cTop = (compHeight * (cutout.topPct || 0)) / 100;
+        const cBottom = (compHeight * (cutout.bottomPct || 100)) / 100;
+
+        const intersects = (
+          compAABB.left < cRight &&
+          compAABB.right > cLeft &&
+          compAABB.top < cBottom &&
+          compAABB.bottom > cTop
+        );
+
+        if (intersects) {
+          const overlapX = Math.min(compAABB.right - cLeft, cRight - compAABB.left);
+          const overlapY = Math.min(compAABB.bottom - cTop, cBottom - compAABB.top);
+          const overflow = Number(Math.min(overlapX, overlapY).toFixed(1));
+
+          const alreadyCovered = violations.some(v => v.side === cutout.id);
+          if (!alreadyCovered && overflow > 0) {
+            violations.push({
+              side: cutout.id || 'cutout',
+              sideName: `UI-зона «${cutout.name}»`,
+              overflowPx: overflow,
+              cutoutName: cutout.name
+            });
+          }
+        }
+      }
+    }
+
     const passed = violations.length === 0;
     const maxOverflow = violations.length > 0 ? Math.max(...violations.map(v => v.overflowPx)) : 0;
 
@@ -145,7 +277,25 @@ export class SafeZoneChecker {
       violations,
       maxOverflow,
       safeArea,
-      compSize: { width: compWidth, height: compHeight }
+      preset: this.preset?.name || 'Custom'
     };
+  }
+
+  setPreset(preset) {
+    if (typeof preset === 'string' && BROADCAST_PRESETS[preset]) {
+      this.preset = BROADCAST_PRESETS[preset];
+    } else if (typeof preset === 'object') {
+      this.preset = preset;
+    }
+  }
+
+  setCustomMargins(margins) {
+    if (margins.unit === 'px') {
+      this.customMarginPx = margins;
+      this.customMarginPercent = null;
+    } else {
+      this.customMarginPercent = margins;
+      this.customMarginPx = null;
+    }
   }
 }
