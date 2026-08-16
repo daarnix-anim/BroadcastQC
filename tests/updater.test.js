@@ -4,11 +4,11 @@ import { AutoUpdater, compareSemver } from '../packages/updater/index.js';
 
 test('AutoUpdater Module Tests', async (t) => {
   await t.test('SemVer version comparison', () => {
-    assert.equal(compareSemver('0.8.2', '0.8.3'), 1, '0.8.3 should be newer than 0.8.2');
-    assert.equal(compareSemver('0.8.2', '0.9.0'), 1, '0.9.0 should be newer than 0.8.2');
-    assert.equal(compareSemver('0.8.2', '1.0.0'), 1, '1.0.0 should be newer than 0.8.2');
-    assert.equal(compareSemver('v0.8.2', 'v0.8.2'), 0, 'Equal versions should return 0');
-    assert.equal(compareSemver('0.8.2', '0.8.1'), -1, '0.8.1 should be older than 0.8.2');
+    assert.equal(compareSemver('0.8.3', '0.8.4'), 1, '0.8.4 should be newer than 0.8.3');
+    assert.equal(compareSemver('0.8.3', '0.9.0'), 1, '0.9.0 should be newer than 0.8.3');
+    assert.equal(compareSemver('0.8.3', '1.0.0'), 1, '1.0.0 should be newer than 0.8.3');
+    assert.equal(compareSemver('v0.8.3', 'v0.8.3'), 0, 'Equal versions should return 0');
+    assert.equal(compareSemver('0.8.3', '0.8.2'), -1, '0.8.2 should be older than 0.8.3');
   });
 
   await t.test('Parses GitHub Releases API response correctly', async () => {
@@ -35,7 +35,7 @@ test('AutoUpdater Module Tests', async (t) => {
 
     const updater = new AutoUpdater({
       repo: 'daarnix-anim/BroadcastQC',
-      currentVersion: '0.8.2',
+      currentVersion: '0.8.3',
       fetchFn: mockFetch
     });
 
@@ -50,11 +50,11 @@ test('AutoUpdater Module Tests', async (t) => {
 
   await t.test('Reports no update when current version is equal to or greater than release', async () => {
     const mockRelease = {
-      tag_name: 'v0.8.2',
-      name: 'Broadcast QC v0.8.2',
+      tag_name: 'v0.8.3',
+      name: 'Broadcast QC v0.8.3',
       body: 'Initial release',
       published_at: '2026-08-16T12:00:00Z',
-      html_url: 'https://github.com/daarnix-anim/BroadcastQC/releases/tag/v0.8.2',
+      html_url: 'https://github.com/daarnix-anim/BroadcastQC/releases/tag/v0.8.3',
       assets: []
     };
 
@@ -66,12 +66,12 @@ test('AutoUpdater Module Tests', async (t) => {
 
     const updater = new AutoUpdater({
       repo: 'daarnix-anim/BroadcastQC',
-      currentVersion: '0.8.2',
+      currentVersion: '0.8.3',
       fetchFn: mockFetch
     });
 
     const result = await updater.checkForUpdates();
     assert.equal(result.hasUpdate, false);
-    assert.equal(result.latestVersion, '0.8.2');
+    assert.equal(result.latestVersion, '0.8.3');
   });
 });

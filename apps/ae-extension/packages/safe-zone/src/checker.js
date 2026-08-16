@@ -10,9 +10,11 @@ export const BROADCAST_PRESETS = {
     id: 'instagram_reels_9_16',
     name: 'Instagram Reels (9:16 - 1080x1920)',
     description: 'Интерфейс Instagram Reels: верхняя шапка (камера/аудио), нижний блок (автор, описание, музыка, CTA) и правый столбец кнопок (лайк, комменты, репост)',
+    aspectRatio: '9:16',
+    aspectLabel: '9:16 REELS',
     marginPercent: { top: 13, bottom: 23, left: 6, right: 16 },
     cutouts: [
-      { id: 'top_header', name: 'Шапка Reels (камера/аудио)', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 12 },
+      { id: 'top_header', name: 'Шапка Reels (камера/аудио)', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 13 },
       { id: 'bottom_caption', name: 'Описание, автор, звук и CTA', leftPct: 0, rightPct: 100, topPct: 77, bottomPct: 100 },
       { id: 'right_actions', name: 'Боковые кнопки (лайк, комменты, репост, аудио)', leftPct: 84, rightPct: 100, topPct: 44, bottomPct: 80 }
     ]
@@ -21,6 +23,8 @@ export const BROADCAST_PRESETS = {
     id: 'instagram_stories_9_16',
     name: 'Instagram Stories (9:16 - 1080x1920)',
     description: 'Интерфейс Instagram Stories: индикаторы историй сверху и строка ответа/реакций снизу',
+    aspectRatio: '9:16',
+    aspectLabel: '9:16 STORIES',
     marginPercent: { top: 14, bottom: 14, left: 6, right: 6 },
     cutouts: [
       { id: 'top_header', name: 'Индикаторы историй и профиль', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 14 },
@@ -31,6 +35,8 @@ export const BROADCAST_PRESETS = {
     id: 'tiktok_9_16',
     name: 'TikTok Video (9:16 - 1080x1920)',
     description: 'Интерфейс TikTok: верхние вкладки (Подписки/Рекомендации/Поиск), нижний блок (описание, хэштеги, виниловый диск музыки) и правый блок (аватар+, лайк, комменты, закладки, поделиться)',
+    aspectRatio: '9:16',
+    aspectLabel: '9:16 TIKTOK',
     marginPercent: { top: 9, bottom: 22, left: 6, right: 16 },
     cutouts: [
       { id: 'top_header', name: 'Вкладки и поиск TikTok', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 9 },
@@ -42,6 +48,8 @@ export const BROADCAST_PRESETS = {
     id: 'vk_clips_9_16',
     name: 'ВКонтакте Клипы (9:16 - 1080x1920)',
     description: 'Интерфейс VK Клипы: верхнее меню поиска/закрытия, блок описания и музыки снизу, правый столбец кнопок взаимодействия',
+    aspectRatio: '9:16',
+    aspectLabel: '9:16 VK КЛИПЫ',
     marginPercent: { top: 11, bottom: 22, left: 6, right: 15 },
     cutouts: [
       { id: 'top_header', name: 'Шапка VK Клипов', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 11 },
@@ -53,6 +61,8 @@ export const BROADCAST_PRESETS = {
     id: 'vk_stories_9_16',
     name: 'ВКонтакте Истории (9:16 - 1080x1920)',
     description: 'Интерфейс VK Истории: индикаторы сверху и поле ответа снизу',
+    aspectRatio: '9:16',
+    aspectLabel: '9:16 VK ИСТОРИИ',
     marginPercent: { top: 12, bottom: 13, left: 6, right: 6 },
     cutouts: [
       { id: 'top_header', name: 'Индикаторы и автор', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 12 },
@@ -63,6 +73,8 @@ export const BROADCAST_PRESETS = {
     id: 'youtube_shorts_9_16',
     name: 'YouTube Shorts (9:16 - 1080x1920)',
     description: 'Интерфейс YouTube Shorts: верхняя панель поиска/камеры, нижний блок канала/подписки/названия и правый блок (лайк, дизлайк, комменты, ремикс)',
+    aspectRatio: '9:16',
+    aspectLabel: '9:16 SHORTS',
     marginPercent: { top: 10, bottom: 21, left: 6, right: 15 },
     cutouts: [
       { id: 'top_header', name: 'Поиск и меню Shorts', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 10 },
@@ -74,6 +86,8 @@ export const BROADCAST_PRESETS = {
     id: 'facebook_reels_9_16',
     name: 'Facebook Reels & Stories (9:16 - 1080x1920)',
     description: 'Интерфейс Facebook Reels: верхний заголовок, нижнее описание с CTA и правые кнопки реакций',
+    aspectRatio: '9:16',
+    aspectLabel: '9:16 FB REELS',
     marginPercent: { top: 11, bottom: 21, left: 6, right: 15 },
     cutouts: [
       { id: 'top_header', name: 'Шапка Facebook Reels', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 11 },
@@ -85,6 +99,8 @@ export const BROADCAST_PRESETS = {
     id: 'social_universal_9_16',
     name: 'Универсальный Social 9:16 (All-in-One Safe)',
     description: 'Максимально безопасная область для одновременной публикации в Reels, TikTok, VK, Shorts и Stories без перекрытия любыми элементами UI',
+    aspectRatio: '9:16',
+    aspectLabel: '9:16 UNIVERSAL',
     marginPercent: { top: 14, bottom: 24, left: 6, right: 16 },
     cutouts: [
       { id: 'top_header', name: 'Общая верхняя зона UI', leftPct: 0, rightPct: 100, topPct: 0, bottomPct: 14 },
@@ -98,12 +114,16 @@ export const BROADCAST_PRESETS = {
     id: 'instagram_feed_4_5',
     name: 'Instagram / VK Feed (4:5 Portrait - 1080x1350)',
     description: 'Портретный формат ленты соцсетей',
+    aspectRatio: '4:5',
+    aspectLabel: '4:5 FEED',
     marginPercent: { top: 6, bottom: 8, left: 6, right: 6 }
   },
   SQUARE_1_1: {
     id: 'square_1_1',
     name: 'Квадратный формат (1:1 - 1080x1080)',
     description: 'Квадратные посты в ленте соцсетей и маркетплейсах',
+    aspectRatio: '1:1',
+    aspectLabel: '1:1 SQUARE',
     marginPercent: { top: 5, bottom: 5, left: 5, right: 5 }
   },
 
@@ -112,24 +132,32 @@ export const BROADCAST_PRESETS = {
     id: 'ebu_r95_title',
     name: 'EBU R95 Title Safe (90% - ТВ 16:9)',
     description: 'Европейский вещательный стандарт Title Safe (5% отступ с каждой стороны)',
+    aspectRatio: '16:9',
+    aspectLabel: '16:9 BROADCAST',
     marginPercent: { top: 5, bottom: 5, left: 5, right: 5 }
   },
   EBU_R95_ACTION_SAFE: {
     id: 'ebu_r95_action',
     name: 'EBU R95 Action Safe (93% - ТВ 16:9)',
     description: 'Европейский вещательный стандарт Action Safe (3.5% отступ с каждой стороны)',
+    aspectRatio: '16:9',
+    aspectLabel: '16:9 ACTION',
     marginPercent: { top: 3.5, bottom: 3.5, left: 3.5, right: 3.5 }
   },
   SMPTE_TITLE_SAFE_80: {
     id: 'smpte_title_80',
     name: 'SMPTE RP 218 Title Safe (80% - ТВ)',
     description: 'Классический стандарт для эфирного ТВ (10% отступ)',
+    aspectRatio: '16:9',
+    aspectLabel: '16:9 SMPTE TITLE',
     marginPercent: { top: 10, bottom: 10, left: 10, right: 10 }
   },
   SMPTE_ACTION_SAFE_90: {
     id: 'smpte_action_90',
     name: 'SMPTE RP 218 Action Safe (90% - ТВ)',
     description: 'Классический стандарт Action Safe (5% отступ)',
+    aspectRatio: '16:9',
+    aspectLabel: '16:9 SMPTE ACTION',
     marginPercent: { top: 5, bottom: 5, left: 5, right: 5 }
   }
 };

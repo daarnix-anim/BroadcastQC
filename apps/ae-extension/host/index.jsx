@@ -488,15 +488,19 @@ var BroadcastQCHost = {
                 return JSONHelper.stringify({ success: true, active: false, message: "Оверлей скрыт" });
             }
 
-            var margins = { top: 5, bottom: 5, left: 5, right: 5 };
+            var margins = { top: 5, bottom: 5, left: 5, right: 5, cutouts: [] };
             if (marginPercentJson) {
                 try {
                     var parsed = typeof marginPercentJson === "string" ? JSONHelper.parse(marginPercentJson) : marginPercentJson;
-                    if (parsed) {
+                    if (typeof parsed === "string") {
+                        parsed = JSONHelper.parse(parsed);
+                    }
+                    if (parsed && typeof parsed === "object") {
                         margins.top = Number(parsed.top) || 0;
                         margins.bottom = Number(parsed.bottom) || 0;
                         margins.left = Number(parsed.left) || 0;
                         margins.right = Number(parsed.right) || 0;
+                        margins.cutouts = (parsed.cutouts && parsed.cutouts.length > 0) ? parsed.cutouts : [];
                     }
                 } catch (e) {}
             }
@@ -531,7 +535,7 @@ var BroadcastQCHost = {
             var centerX = (leftPx + (compW - rightPx)) / 2;
             var centerY = (topPx + (compH - bottomPx)) / 2;
 
-            existingLayer.transform.position.setValue([compW / 2, compH / 2]);
+            existingLayer.transform.position.setValue([0, 0]);
             existingLayer.transform.anchorPoint.setValue([0, 0]);
 
             // 1. Основной контур безопасной зоны
@@ -541,7 +545,7 @@ var BroadcastQCHost = {
 
             var rect = groupContents.addProperty("ADBE Vector Shape - Rect");
             rect.property("Size").setValue([boxW, boxH]);
-            rect.property("Position").setValue([centerX - compW / 2, centerY - compH / 2]);
+            rect.property("Position").setValue([centerX, centerY]);
             rect.property("Roundness").setValue(0);
 
             // Ярко-красный цвет обводки границы [1.0, 0.15, 0.25]
@@ -579,7 +583,7 @@ var BroadcastQCHost = {
 
                     var cRect = cGroupContents.addProperty("ADBE Vector Shape - Rect");
                     cRect.property("Size").setValue([cW, cH]);
-                    cRect.property("Position").setValue([cCenterX - compW / 2, cCenterY - compH / 2]);
+                    cRect.property("Position").setValue([cCenterX, cCenterY]);
                     cRect.property("Roundness").setValue(cutout.id === "right_actions" ? 24 : 0);
 
                     // Полупрозрачная красная заливка для заблокированной зоны

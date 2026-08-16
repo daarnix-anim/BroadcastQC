@@ -10,7 +10,7 @@ import { BROADCAST_PRESETS } from '../../packages/safe-zone/index.js';
 import { AIAgent } from '../../packages/ai/index.js';
 import { AutoUpdater } from '../../packages/updater/index.js';
 
-const APP_CURRENT_VERSION = '0.8.2';
+const APP_CURRENT_VERSION = '0.8.3';
 
 // ==========================================
 // 1. Global Error Boundary & Toast System
@@ -225,6 +225,9 @@ const customMarginR = document.getElementById('customMarginR');
 const customMarginT = document.getElementById('customMarginT');
 const customMarginB = document.getElementById('customMarginB');
 
+const previewScreenFrame = document.getElementById('previewScreenFrame');
+const previewCompAspectLabel = document.getElementById('previewCompAspectLabel');
+const previewCutoutsContainer = document.getElementById('previewCutoutsContainer');
 const visualSafeBox = document.getElementById('visualSafeBox');
 const safeZoneDimensionsBadge = document.getElementById('safeZoneDimensionsBadge');
 const lblTopMargin = document.getElementById('lblTopMargin');
@@ -450,16 +453,45 @@ function getEffectiveSafeZoneMargins() {
 function updateSafeZoneVisualPreview() {
   const val = selectSafePreset ? selectSafePreset.value : 'ebu_r95_title';
   const margins = getEffectiveSafeZoneMargins();
+  const presetObj = val !== 'custom' ? findPresetById(val) : null;
+  const aspectRatio = presetObj ? (presetObj.aspectRatio || '16:9') : '16:9';
+  const aspectLabel = presetObj ? (presetObj.aspectLabel || '16:9 TV') : 'CUSTOM COMP';
 
   if (safeZoneDimensionsBadge) {
     if (val === 'custom') {
       safeZoneDimensionsBadge.textContent = `Custom (${margins.left}%L, ${margins.right}%R, ${margins.top}%T, ${margins.bottom}%B)`;
     } else {
-      const p = findPresetById(val);
-      safeZoneDimensionsBadge.textContent = p.name;
+      safeZoneDimensionsBadge.textContent = presetObj.name;
     }
   }
 
+  // 1. Адаптация пропорций рамки устройства под выбранный формат
+  if (previewScreenFrame) {
+    if (aspectRatio === '9:16') {
+      previewScreenFrame.style.width = '96px';
+      previewScreenFrame.style.height = '170px';
+      previewScreenFrame.style.borderRadius = '8px';
+    } else if (aspectRatio === '1:1') {
+      previewScreenFrame.style.width = '145px';
+      previewScreenFrame.style.height = '145px';
+      previewScreenFrame.style.borderRadius = '4px';
+    } else if (aspectRatio === '4:5') {
+      previewScreenFrame.style.width = '120px';
+      previewScreenFrame.style.height = '150px';
+      previewScreenFrame.style.borderRadius = '6px';
+    } else {
+      // 16:9 Горизонтальный ТВ-формат
+      previewScreenFrame.style.width = '248px';
+      previewScreenFrame.style.height = '139.5px';
+      previewScreenFrame.style.borderRadius = '4px';
+    }
+  }
+
+  if (previewCompAspectLabel) {
+    previewCompAspectLabel.textContent = aspectLabel;
+  }
+
+  // 2. Позиционирование основной безопасной зоны
   if (visualSafeBox) {
     const widthPct = Math.max(10, 100 - (margins.left + margins.right));
     const heightPct = Math.max(10, 100 - (margins.top + margins.bottom));
@@ -476,6 +508,31 @@ function updateSafeZoneVisualPreview() {
   if (lblBottomMargin) lblBottomMargin.textContent = `${margins.bottom}%`;
   if (lblLeftMargin) lblLeftMargin.textContent = `${margins.left}%`;
   if (lblRightMargin) lblRightMargin.textContent = `${margins.right}%`;
+
+  // 3. Отрисовка непрямоугольных UI-вырезов соцсетей (шапка, описание, боковые кнопки)
+  if (previewCutoutsContainer) {
+    previewCutoutsContainer.innerHTML = '';
+    const cutouts = margins.cutouts || [];
+    for (const cutout of cutouts) {
+      const cutoutEl = document.createElement('div');
+      cutoutEl.style.position = 'absolute';
+      cutoutEl.style.left = `${cutout.leftPct || 0}%`;
+      cutoutEl.style.top = `${cutout.topPct || 0}%`;
+      cutoutEl.style.width = `${Math.max(2, (cutout.rightPct || 100) - (cutout.leftPct || 0))}%`;
+      cutoutEl.style.height = `${Math.max(2, (cutout.bottomPct || 100) - (cutout.topPct || 0))}%`;
+      cutoutEl.style.background = 'rgba(255, 51, 75, 0.16)';
+      cutoutEl.style.border = '1px dashed rgba(255, 74, 95, 0.7)';
+      cutoutEl.style.boxSizing = 'border-box';
+      cutoutEl.style.pointerEvents = 'none';
+
+      if (cutout.id === 'right_actions') {
+        cutoutEl.style.borderRadius = '6px';
+        cutoutEl.style.background = 'rgba(255, 51, 75, 0.22)';
+      }
+
+      previewCutoutsContainer.appendChild(cutoutEl);
+    }
+  }
 }
 
 function initSafeZoneUI() {

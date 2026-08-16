@@ -347,58 +347,74 @@ export class SpellChecker {
   }
 
   /**
-   * Асинхронная гибридная проверка (с поддержкой Яндекс.Спеллера)
+   * Асинхронная гибридная проверка (с поддержкой Яндекс.Спеллера и надежным оффлайн-слиянием)
    */
   async checkAsync(text) {
     if (!text || typeof text !== 'string') {
       return { status: 'ok', issues: [] };
     }
 
-    // Если включена онлайн-проверка через Яндекс
+    // Базовый оффлайн анализ текста
+    const offlineResult = this.check(text);
+    let combinedIssues = [...offlineResult.issues];
+
+    // Если включена онлайн-проверка через Яндекс.Спеллер
     if (this.useOnlineSpeller) {
-      const onlineResults = await this.yandexSpeller.checkText(text);
+      try {
+        const onlineResults = await this.yandexSpeller.checkText(text);
 
-      // Если Яндекс успешно ответил
-      if (Array.isArray(onlineResults)) {
-        const issues = [];
+        if (Array.isArray(onlineResults)) {
+          for (const item of onlineResults) {
+            const normWord = this.normalize(item.word);
+            if (this.userDictionary.has(item.word) || this.motionTerms.has(normWord) || this.abbreviations.has(normWord)) {
+              continue;
+            }
 
-        // Фильтруем результаты Яндекса: исключаем термины из белого списка и пользовательского словаря
-        for (const item of onlineResults) {
-          if (!this.userDictionary.has(item.word) && !this.motionTerms.has(this.normalize(item.word))) {
-            issues.push({
-              type: 'spelling',
-              code: item.code,
-              word: item.word,
-              suggestion: item.suggestion,
-              suggestions: item.suggestions,
-              message: item.message,
-              index: item.pos,
-              length: item.len,
-              severity: item.severity
-            });
+            // Поиск совпадения с уже найденной оффлайн ошибкой для обогащения подсказками
+            const existingIdx = combinedIssues.findIndex(i => 
+              i.type === 'spelling' && (i.word === item.word || Math.abs(i.index - item.pos) <= 2)
+            );
+
+            if (existingIdx !== -1) {
+              if (item.suggestion) {
+                combinedIssues[existingIdx].suggestion = item.suggestion;
+              }
+              if (Array.isArray(item.suggestions) && item.suggestions.length > 0) {
+                combinedIssues[existingIdx].suggestions = item.suggestions;
+              }
+              combinedIssues[existingIdx].code = item.code;
+            } else {
+              combinedIssues.push({
+                type: 'spelling',
+                code: item.code,
+                word: item.word,
+                suggestion: item.suggestion || null,
+                suggestions: item.suggestions || [],
+                message: item.message,
+                index: item.pos,
+                length: item.len,
+                severity: item.severity
+              });
+            }
           }
         }
-
-        // Добавляем проверку типографики
-        if (this.checkTypography && this.typographyLinter) {
-          const typoIssues = this.typographyLinter.lint(text);
-          issues.push(...typoIssues);
-        }
-
-        let status = 'ok';
-        if (issues.some(i => i.severity === 'error')) {
-          status = 'error';
-        } else if (issues.some(i => i.severity === 'warning')) {
-          status = 'warning';
-        } else if (issues.length > 0) {
-          status = 'info';
-        }
-
-        return { text, status, issues };
+      } catch (err) {
+        console.warn('[SpellChecker] Online check fallback to offline:', err.message);
       }
     }
 
-    // Если онлайн выключен или вернул null (фолбэк на оффлайн морфологию)
-    return this.check(text);
+    // Сортировка по позиции в тексте
+    combinedIssues.sort((a, b) => (a.index || 0) - (b.index || 0));
+
+    let status = 'ok';
+    if (combinedIssues.some(i => i.severity === 'error')) {
+      status = 'error';
+    } else if (combinedIssues.some(i => i.severity === 'warning')) {
+      status = 'warning';
+    } else if (combinedIssues.length > 0) {
+      status = 'info';
+    }
+
+    return { text, status, issues: combinedIssues };
   }
 }
