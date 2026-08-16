@@ -69,6 +69,7 @@ export class BroadcastQCCore {
     let totalReadingWarnings = 0;
     let totalHealthIssues = 0;
     let totalAIIssues = 0;
+    let totalWordsChecked = 0;
 
     // 1. Технический аудит проекта (Guide layers, Missing Fonts, Empty layers)
     if (this.options.checkProjectHealth) {
@@ -101,6 +102,11 @@ export class BroadcastQCCore {
       const layerCompName = layer.compName || comp.name;
       const parentCompName = layer.parentCompName || '';
       const isNested = !!parentCompName || !!layer.isNested;
+
+      if (layer.text) {
+        const tokens = this.spellChecker.tokenize(layer.text);
+        totalWordsChecked += tokens.length;
+      }
 
       // 2.1. Проверка правописания и типографики
       if (this.options.checkSpelling && layer.text) {
@@ -274,6 +280,7 @@ export class BroadcastQCCore {
       },
       summary: {
         totalLayersChecked: layers.length,
+        totalWordsChecked: totalWordsChecked,
         totalStableStatesChecked: totalStableStates,
         spellingErrors: totalSpellingErrors,
         typographyWarnings: totalTypographyWarnings,

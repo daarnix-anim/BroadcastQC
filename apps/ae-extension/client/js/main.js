@@ -215,6 +215,7 @@ const statErrors = document.getElementById('statErrors');
 const statWarnings = document.getElementById('statWarnings');
 const statInfo = document.getElementById('statInfo');
 const statLayers = document.getElementById('statLayers');
+const statWordsChecked = document.getElementById('statWordsChecked');
 const issuesContainer = document.getElementById('issuesContainer');
 const initialEmptyState = document.getElementById('initialEmptyState');
 
@@ -941,11 +942,12 @@ btnRunQC.addEventListener('click', async () => {
       const warnCount = report.summary.totalWarnings;
       const infoCount = report.summary.totalInfo || 0;
       const layerCount = report.summary.totalLayersChecked;
+      const wordCount = report.summary.totalWordsChecked || 0;
 
       if (errCount === 0 && warnCount === 0 && infoCount === 0) {
-        showToast(`✅ Проверка завершена: все ${layerCount} слоёв соответствуют ТВ-стандартам!`, 'success', 4000);
+        showToast(`✅ Проверка завершена: ${layerCount} слоёв (${wordCount} слов) соответствуют стандартам!`, 'success', 4000);
       } else {
-        showToast(`Проверено слоёв: ${layerCount} (ошибок: ${errCount}, предупр: ${warnCount}, замеч: ${infoCount})`, errCount > 0 ? 'error' : 'warning', 5000);
+        showToast(`Проверено: ${layerCount} слоёв, ${wordCount} слов (ошибок: ${errCount}, предупр: ${warnCount}, замеч: ${infoCount})`, errCount > 0 ? 'error' : 'warning', 5000);
       }
 
     } catch (err) {
@@ -1017,6 +1019,13 @@ function renderReport(report) {
   statWarnings.textContent = report.summary.totalWarnings || 0;
   if (statInfo) statInfo.textContent = report.summary.totalInfo || 0;
   statLayers.textContent = report.summary.totalLayersChecked || 0;
+  if (statWordsChecked) {
+    const wCount = report.summary.totalWordsChecked || 0;
+    statWordsChecked.textContent = `(${wCount} сл.)`;
+  }
+  if (statBoxLayers) {
+    statBoxLayers.title = `Проверено: ${report.summary.totalLayersChecked || 0} слоёв, ${report.summary.totalWordsChecked || 0} слов`;
+  }
 
   currentIssueFilter = 'all';
   updateFilterVisuals();

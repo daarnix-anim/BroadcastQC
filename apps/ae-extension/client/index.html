@@ -160,8 +160,11 @@
                     <div class="stat-label">Замечаний</div>
                 </div>
                 <div id="statBoxLayers" class="stat-box passed" title="Нажмите, чтобы показать все слои и результаты" role="button" tabindex="0">
-                    <div id="statLayers" class="stat-number" style="color: var(--success);">0</div>
-                    <div class="stat-label">Слоев</div>
+                    <div style="display: flex; align-items: baseline; justify-content: center; gap: 3px; flex-wrap: wrap;">
+                        <span id="statLayers" class="stat-number" style="color: var(--success);">0</span>
+                        <span id="statWordsChecked" style="font-size: 10.5px; font-weight: 600; color: #6ee7b7; white-space: nowrap;">(0 сл.)</span>
+                    </div>
+                    <div class="stat-label" id="statLayersLabel">Слоёв / Слов</div>
                 </div>
             </div>
         </div>
