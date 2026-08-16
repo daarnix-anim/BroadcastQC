@@ -347,74 +347,69 @@ export class SpellChecker {
   }
 
   /**
-   * Асинхронная гибридная проверка (с поддержкой Яндекс.Спеллера и надежным оффлайн-слиянием)
+   * Асинхронная гибридная проверка:
+   * При включенном «Яндекс Онлайн» использует Яндекс.Спеллер API как точный контекстный анализатор.
+   * При отключенном онлайне или отсутствии интернета/таймауте переключается на оффлайн морфологический движок.
    */
   async checkAsync(text) {
     if (!text || typeof text !== 'string') {
       return { status: 'ok', issues: [] };
     }
 
-    // Базовый оффлайн анализ текста
-    const offlineResult = this.check(text);
-    let combinedIssues = [...offlineResult.issues];
-
-    // Если включена онлайн-проверка через Яндекс.Спеллер
+    // 1. Если включена онлайн-проверка через Яндекс.Спеллер
     if (this.useOnlineSpeller) {
       try {
         const onlineResults = await this.yandexSpeller.checkText(text);
 
+        // Если Яндекс успешно ответил (массив ошибок)
         if (Array.isArray(onlineResults)) {
+          const issues = [];
+
           for (const item of onlineResults) {
             const normWord = this.normalize(item.word);
-            if (this.userDictionary.has(item.word) || this.motionTerms.has(normWord) || this.abbreviations.has(normWord)) {
+            if (this.userDictionary.has(item.word) || this.userDictionary.has(normWord) ||
+                this.motionTerms.has(normWord) || this.abbreviations.has(normWord)) {
               continue;
             }
 
-            // Поиск совпадения с уже найденной оффлайн ошибкой для обогащения подсказками
-            const existingIdx = combinedIssues.findIndex(i => 
-              i.type === 'spelling' && (i.word === item.word || Math.abs(i.index - item.pos) <= 2)
-            );
-
-            if (existingIdx !== -1) {
-              if (item.suggestion) {
-                combinedIssues[existingIdx].suggestion = item.suggestion;
-              }
-              if (Array.isArray(item.suggestions) && item.suggestions.length > 0) {
-                combinedIssues[existingIdx].suggestions = item.suggestions;
-              }
-              combinedIssues[existingIdx].code = item.code;
-            } else {
-              combinedIssues.push({
-                type: 'spelling',
-                code: item.code,
-                word: item.word,
-                suggestion: item.suggestion || null,
-                suggestions: item.suggestions || [],
-                message: item.message,
-                index: item.pos,
-                length: item.len,
-                severity: item.severity
-              });
-            }
+            issues.push({
+              type: 'spelling',
+              code: item.code || 'SPELLING_ERROR',
+              word: item.word,
+              suggestion: item.suggestion || (item.suggestions && item.suggestions[0]) || null,
+              suggestions: item.suggestions || [],
+              message: item.message || `Возможная орфографическая ошибка: «${item.word}»`,
+              index: item.pos,
+              length: item.len,
+              severity: item.severity || 'error'
+            });
           }
+
+          // Добавляем проверку правил типографики
+          if (this.checkTypography && this.typographyLinter) {
+            const typoIssues = this.typographyLinter.lint(text);
+            issues.push(...typoIssues);
+          }
+
+          issues.sort((a, b) => (a.index || 0) - (b.index || 0));
+
+          let status = 'ok';
+          if (issues.some(i => i.severity === 'error')) {
+            status = 'error';
+          } else if (issues.some(i => i.severity === 'warning')) {
+            status = 'warning';
+          } else if (issues.length > 0) {
+            status = 'info';
+          }
+
+          return { text, status, issues };
         }
       } catch (err) {
         console.warn('[SpellChecker] Online check fallback to offline:', err.message);
       }
     }
 
-    // Сортировка по позиции в тексте
-    combinedIssues.sort((a, b) => (a.index || 0) - (b.index || 0));
-
-    let status = 'ok';
-    if (combinedIssues.some(i => i.severity === 'error')) {
-      status = 'error';
-    } else if (combinedIssues.some(i => i.severity === 'warning')) {
-      status = 'warning';
-    } else if (combinedIssues.length > 0) {
-      status = 'info';
-    }
-
-    return { text, status, issues: combinedIssues };
+    // 2. Если онлайн выключен или недоступен -> оффлайн проверка
+    return this.check(text);
   }
 }

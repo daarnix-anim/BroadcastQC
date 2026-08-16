@@ -271,6 +271,7 @@ const btnPerformUpdate = document.getElementById('btnPerformUpdate');
 const githubRepoInput = document.getElementById('githubRepoInput');
 const btnCheckUpdatesManual = document.getElementById('btnCheckUpdatesManual');
 const updateStatusText = document.getElementById('updateStatusText');
+const headerAppVersionBadge = document.getElementById('headerAppVersionBadge');
 
 // ==========================================
 // 4. Lifecycle & After Effects Connection
@@ -278,6 +279,7 @@ const updateStatusText = document.getElementById('updateStatusText');
 
 function init() {
   if (appVersionBadge) appVersionBadge.textContent = `v${APP_CURRENT_VERSION}`;
+  if (headerAppVersionBadge) headerAppVersionBadge.textContent = `v${APP_CURRENT_VERSION}`;
   initTabs();
   initDictionaryUI();
   initSafeZoneUI();

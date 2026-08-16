@@ -21,6 +21,7 @@ export class RussianMorphology {
     'по', 'пере', 'про', 'за', 'до', 'вы', 'на', 'под', 'подо',
     'от', 'ото', 'с', 'со', 'при', 'раз', 'рас', 'разо', 'из', 'ис',
     'изо', 'без', 'бес', 'безо', 'не', 'недо', 'наи', 'сверх',
+    'пред', 'предо', 'преду',
     'меж', 'со', 'полу', 'де', 'ре', 'супер', 'мега', 'микро', 'мини',
     // Compound prefix bases
     'видео', 'аудио', 'кино', 'теле', 'радио', 'фото', 'медиа', 'веб', 'онлайн', 'офлайн', 'оффлайн', 'мульти'
@@ -110,9 +111,9 @@ export class RussianMorphology {
     }
 
     // A. Participle forms with active/passive suffixes (-ующий, -ящий, -ащий, -вший, -нный, -тый)
-    const participleMatch = base.match(/^(.+?)(ующего|ующему|ующим|ующем|ующая|ующую|ующей|ующие|ующих|ующими|ующий|ющего|ющему|ющим|ющем|ющая|ющую|ющей|ющие|ющих|ющими|ющий|ящего|ящему|ящим|ящем|ящая|ящую|ящей|ящие|ящих|ящими|ящий|ащего|ащему|ащим|ащем|ащая|ащую|ащей|ащие|ащих|ащими|ащий|вшего|вшему|вшим|вшем|вшая|вшую|вшей|вшие|вших|вшими|вший|нного|нному|нным|нном|нная|нную|нной|нные|нных|нными|нный|тый|того|тому|тым|том|тая|тую|той|тые|тых|тыми)$/);
+    const participleMatch = base.match(/^(.+?)(ующего|ующему|ующим|ующем|ующая|ующую|ующей|ующие|ующих|ующими|ующий|ющего|ющему|ющим|ющем|ющая|ющую|ющей|ющие|ющих|ymi|ющий|ящего|ящему|ящим|ящем|ящая|ящую|ящей|ящие|ящих|ящими|ящий|ащего|ащему|ащим|ащем|ащая|ащую|ащей|ащие|ащих|ащими|ащий|вшего|вшему|вшим|вшем|вшая|вшую|вшей|вшие|вших|вшими|вший|нного|нному|нным|нном|нная|нную|нной|нные|нных|нными|нный|тый|того|тому|тым|том|тая|тую|той|тые|тых|тыми)$/);
     if (participleMatch) {
-      const pStem = participleMatch[1];
+      let pStem = participleMatch[1];
       candidates.add(pStem);
       candidates.add(pStem + 'ть');
       candidates.add(pStem + 'ать');
@@ -125,6 +126,17 @@ export class RussianMorphology {
       candidates.add(pStem + 'ться');
       candidates.add(pStem + 'аться');
       candidates.add(pStem + 'иться');
+
+      // Чередования губных согласных в причастиях (заявленный -> заявить/заявление, оформленный -> оформить)
+      if (pStem.endsWith('е')) pStem = pStem.slice(0, -1);
+      const alternStem = pStem.replace(/(бл|вл|мл|пл|фл)$/, (m) => m[0]);
+      if (alternStem !== pStem) {
+        candidates.add(alternStem + 'ить');
+        candidates.add(alternStem + 'ять');
+        candidates.add(alternStem + 'ение');
+        candidates.add(alternStem + 'ление');
+        candidates.add(alternStem + 'ка');
+      }
     }
 
     // B. Adjective Endings -> Base form (-ый, -ий, -ой)
@@ -140,7 +152,7 @@ export class RussianMorphology {
         candidates.add(stem + 'ый');
         candidates.add(stem + 'ий');
         candidates.add(stem + 'ой');
-        candidates.add(stem); // Short form or noun stem
+        candidates.add(stem); // Short form or noun/geo stem (e.g. Хабаровский -> Хабаровск)
       }
     }
 
@@ -172,6 +184,25 @@ export class RussianMorphology {
         candidates.add(stem + 'ие');  // Verbal noun: создание, вещание, движение
         candidates.add(stem + 'ка');  // Diminutive: плашка, заставка, отбивка
       }
+    }
+
+    // Родительный падеж множественного числа с нулевым окончанием (мест -> место, дел -> дело, слов -> слово, строк -> строка)
+    if (!/[аеёиоуыэюяьъй]$/.test(base) && base.length >= 3) {
+      candidates.add(base + 'о');
+      candidates.add(base + 'а');
+      candidates.add(base + 'е');
+      candidates.add(base + 'я');
+      candidates.add(base + 'ь');
+    }
+
+    // Существительные на -ция/-ия в родительном падеже мн. ч. (инвестиций -> инвестиция, позиций -> позиция, акций -> акция)
+    if (base.endsWith('ий') || base.endsWith('ций')) {
+      const iStem = base.replace(/(ий|ций)$/, '');
+      candidates.add(iStem + 'ия');
+      candidates.add(iStem + 'ция');
+      candidates.add(iStem + 'ции');
+      candidates.add(iStem + 'цион');
+      candidates.add(iStem + 'ционный');
     }
 
     // Abstract & verbal noun suffixes: -изация, -ирование, -ение, -ание, -ость
