@@ -100,7 +100,7 @@ if (validCount === 0) {
   // Center of the bounding area adjusted for asymmetrical padding
   var cx = (minX + maxX)/2 + (padR - padL)/2;
   var cy = (minY + maxY)/2 + (padB - padT)/2;
-  [cx, cy];
+  hasParent ? fromComp([cx, cy]) : [cx, cy];
 }`;
   }
 

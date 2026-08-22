@@ -1,6 +1,6 @@
 {
   "name": "broadcast-qc",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Broadcast Quality Control Extension for Adobe After Effects 2026.2 (Spell Check, Safe Zone, AI Agent, Reading Speed, Auto-Fix & Auto-Updater)",
   "main": "packages/qc-core/src/index.js",
   "type": "module",

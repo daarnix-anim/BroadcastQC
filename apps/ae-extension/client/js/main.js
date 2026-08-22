@@ -11,7 +11,7 @@ import { AIAgent } from '../../packages/ai/index.js';
 import { AutoUpdater } from '../../packages/updater/index.js';
 import { AutoPlateEngine, DEFAULT_PLATE_CONFIG, ORIGIN_POINTS, STYLE_PRESETS } from '../../packages/auto-plate/index.js';
 
-const APP_CURRENT_VERSION = '0.9.1';
+const APP_CURRENT_VERSION = '0.9.2';
 
 // ==========================================
 // 1. Global Error Boundary & Toast System
@@ -768,81 +768,6 @@ function initAutoPlateUI() {
       const op = parseInt(opacityInput.value, 10);
       plateState.opacity = op;
       opacityVal.textContent = `${op}%`;
-      savePlateState();
-    });
-  }
-
-  // Origin Grid
-  const originCells = originGrid?.querySelectorAll('.origin-cell');
-  originCells?.forEach(cell => {
-    cell.addEventListener('click', () => {
-      const origId = parseInt(cell.getAttribute('data-origin'), 10);
-      plateState.originPoint = origId;
-      originCells.forEach(c => c.classList.remove('active'));
-      cell.classList.add('active');
-      if (originPointLabel) {
-        originPointLabel.textContent = ORIGIN_LABELS[origId] || `Точка #${origId}`;
-      }
-      savePlateState();
-    });
-  });
-
-  if (originPointLabel) {
-    originPointLabel.textContent = ORIGIN_LABELS[plateState.originPoint] || 'Left-Center';
-  }
-
-  // Animation Controls
-  if (animTypeSelect) {
-    animTypeSelect.value = plateState.animType || 'expand_x';
-    animTypeSelect.addEventListener('change', () => {
-      plateState.animType = animTypeSelect.value;
-      savePlateState();
-    });
-  }
-
-  if (animInDurSelect) {
-    animInDurSelect.value = String(plateState.animInDuration || 0.45);
-    animInDurSelect.addEventListener('change', () => {
-      plateState.animInDuration = parseFloat(animInDurSelect.value);
-      savePlateState();
-    });
-  }
-
-  if (animOutDurSelect) {
-    animOutDurSelect.value = String(plateState.animOutDuration || 0.35);
-    animOutDurSelect.addEventListener('change', () => {
-      plateState.animOutDuration = parseFloat(animOutDurSelect.value);
-      savePlateState();
-    });
-  }
-
-  // Mask & Text Slide Toggles
-  if (chkPlateMask) {
-    chkPlateMask.checked = plateState.enableMask !== false;
-    chkPlateMask.addEventListener('change', () => {
-      plateState.enableMask = chkPlateMask.checked;
-      savePlateState();
-    });
-  }
-
-  if (chkTextSlideIn) {
-    chkTextSlideIn.checked = plateState.animateTextIn !== false;
-    if (textSlideDirectionGroup) {
-      textSlideDirectionGroup.style.display = chkTextSlideIn.checked ? 'block' : 'none';
-    }
-    chkTextSlideIn.addEventListener('change', () => {
-      plateState.animateTextIn = chkTextSlideIn.checked;
-      if (textSlideDirectionGroup) {
-        textSlideDirectionGroup.style.display = chkTextSlideIn.checked ? 'block' : 'none';
-      }
-      savePlateState();
-    });
-  }
-
-  if (plateTextSlideDir) {
-    plateTextSlideDir.value = plateState.textSlideDirection || 'left';
-    plateTextSlideDir.addEventListener('change', () => {
-      plateState.textSlideDirection = plateTextSlideDir.value;
       savePlateState();
     });
   }

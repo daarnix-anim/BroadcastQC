@@ -657,8 +657,7 @@ var BroadcastQCHost = {
 
     /**
      * Создает адаптивную плашку под выделенные слои (текст, иконки, объекты)
-     * с динамическим охватом, отступами, скруглением, маскированием (Track Matte)
-     * и анимацией появления из 9 опорных точек.
+     * с динамическим охватом, независимыми отступами (Paddings) и скруглением углов.
      */
     createAutoPlate: function(configJson) {
         try {
@@ -707,6 +706,10 @@ var BroadcastQCHost = {
                 plateLayer.moveAfter(comp.layer(maxLayerIndex));
             }
 
+            // Сбрасываем Anchor Point в [0,0], Scale в [100,100]
+            plateLayer.property("Anchor Point").setValue([0, 0]);
+            plateLayer.property("Scale").setValue([100, 100]);
+
             // 3. Добавляем эффекты-контроллеры (Sliders) на слой плашки
             var effGroup = plateLayer.property("ADBE Effect Parade");
             
@@ -722,18 +725,12 @@ var BroadcastQCHost = {
             var padT = config.paddingTop !== undefined ? config.paddingTop : 20;
             var padB = config.paddingBottom !== undefined ? config.paddingBottom : 20;
             var roundness = config.roundness !== undefined ? config.roundness : 16;
-            var originPoint = config.originPoint !== undefined ? config.originPoint : 3; // Left-Center default
-            var inDur = config.animInDuration !== undefined ? config.animInDuration : 0.45;
-            var outDur = config.animOutDuration !== undefined ? config.animOutDuration : 0.35;
 
             addSlider("Padding Left", padL);
             addSlider("Padding Right", padR);
             addSlider("Padding Top", padT);
             addSlider("Padding Bottom", padB);
             addSlider("Roundness", roundness);
-            addSlider("Origin Point (0-8)", originPoint);
-            addSlider("In Duration (sec)", inDur);
-            addSlider("Out Duration (sec)", outDur);
 
             // 4. Наполняем шейп содержимым (Rectangle + Fill + Stroke)
             var contents = plateLayer.property("ADBE Root Vectors Group");
@@ -743,6 +740,7 @@ var BroadcastQCHost = {
 
             var rect = groupContents.addProperty("ADBE Vector Shape - Rect");
             rect.name = "Rectangle Path 1";
+            rect.property("Position").setValue([0, 0]);
 
             // Выражение размера для Rectangle Path
             var targetLayersJson = JSONHelper.stringify(targetLayerNames);
@@ -773,7 +771,11 @@ var BroadcastQCHost = {
                 '  } catch(e) {}\n' +
                 '}\n' +
                 'if (valid === 0) [200, 80];\n' +
-                'else [Math.max(10, (maxX - minX) + padL + padR), Math.max(10, (maxY - minY) + padT + padB)];';
+                'else {\n' +
+                '  var w = (maxX - minX) + padL + padR;\n' +
+                '  var h = (maxY - minY) + padT + padB;\n' +
+                '  [Math.max(10, w), Math.max(10, h)];\n' +
+                '}';
 
             // Выражение скругления углов
             rect.property("Roundness").expression = 
@@ -825,119 +827,11 @@ var BroadcastQCHost = {
                 '  } catch(e) {}\n' +
                 '}\n' +
                 'if (valid === 0) value;\n' +
-                'else [(minX + maxX)/2 + (padR - padL)/2, (minY + maxY)/2 + (padB - padT)/2];';
-
-            // 6. Выражение Якорной точки (Anchor Point) для 9-точечного появления
-            plateLayer.property("Anchor Point").expression = 
-                'var origin = 4;\n' +
-                'try { origin = Math.round(effect("Origin Point (0-8)")("Slider")); } catch(e) {}\n' +
-                'var s = content("Plate Box").content("Rectangle Path 1").size;\n' +
-                'var w = s[0], h = s[1];\n' +
-                'var ox = 0, oy = 0;\n' +
-                'switch (origin) {\n' +
-                '  case 0: ox = -w/2; oy = -h/2; break;\n' +
-                '  case 1: ox = 0;    oy = -h/2; break;\n' +
-                '  case 2: ox = w/2;  oy = -h/2; break;\n' +
-                '  case 3: ox = -w/2; oy = 0;    break;\n' +
-                '  case 4: ox = 0;    oy = 0;    break;\n' +
-                '  case 5: ox = w/2;  oy = 0;    break;\n' +
-                '  case 6: ox = -w/2; oy = h/2;  break;\n' +
-                '  case 7: ox = 0;    oy = h/2;  break;\n' +
-                '  case 8: ox = w/2;  oy = h/2;  break;\n' +
-                '  default: ox = 0;   oy = 0;    break;\n' +
-                '}\n' +
-                '[ox, oy];';
-
-            // 7. Выражение Scale для анимации In / Out
-            var animType = config.animType || 'expand_x';
-            plateLayer.property("Scale").expression = 
-                'var inDur = Math.max(0.01, effect("In Duration (sec)")("Slider"));\n' +
-                'var outDur = Math.max(0.01, effect("Out Duration (sec)")("Slider"));\n' +
-                'var tIn = inPoint, tOut = outPoint;\n' +
-                'function easeOutBack(t, b, c, d, s) {\n' +
-                '  if (s == undefined) s = 1.35;\n' +
-                '  t = t/d - 1;\n' +
-                '  return c*(t*t*((s+1)*t + s) + 1) + b;\n' +
-                '}\n' +
-                'var prog = 100;\n' +
-                'if (time < tIn + inDur) {\n' +
-                '  var t = Math.max(0, time - tIn);\n' +
-                '  prog = Math.min(100, Math.max(0, easeOutBack(t, 0, 100, inDur, 1.35)));\n' +
-                '} else if (time > tOut - outDur) {\n' +
-                '  var t = Math.max(0, time - (tOut - outDur));\n' +
-                '  prog = Math.min(100, Math.max(0, 100 - (t / outDur) * 100));\n' +
-                '}\n' +
-                'var animMode = "' + animType + '";\n' +
-                'if (animMode === "expand_x") [prog, 100];\n' +
-                'else if (animMode === "expand_y") [100, prog];\n' +
-                'else [prog, prog];';
-
-            // 8. Маскирование слоев контента (Track Matte / Clipping)
-            if (config.enableMask !== false) {
-                var matteLayer = comp.layers.addShape();
-                matteLayer.name = "[Matte] " + plateLayer.name.replace(/^\[Plate\]\s*/, '');
-                matteLayer.moveBefore(selLayers[0]);
-                
-                var mEff = matteLayer.property("ADBE Effect Parade");
-                var mPadL = mEff.addProperty("ADBE Slider Control"); mPadL.name = "Padding Left"; mPadL.property("Slider").expression = 'thisComp.layer("' + plateLayer.name + '").effect("Padding Left")("Slider")';
-                var mPadR = mEff.addProperty("ADBE Slider Control"); mPadR.name = "Padding Right"; mPadR.property("Slider").expression = 'thisComp.layer("' + plateLayer.name + '").effect("Padding Right")("Slider")';
-                var mPadT = mEff.addProperty("ADBE Slider Control"); mPadT.name = "Padding Top"; mPadT.property("Slider").expression = 'thisComp.layer("' + plateLayer.name + '").effect("Padding Top")("Slider")';
-                var mPadB = mEff.addProperty("ADBE Slider Control"); mPadB.name = "Padding Bottom"; mPadB.property("Slider").expression = 'thisComp.layer("' + plateLayer.name + '").effect("Padding Bottom")("Slider")';
-                var mRnd = mEff.addProperty("ADBE Slider Control"); mRnd.name = "Roundness"; mRnd.property("Slider").expression = 'thisComp.layer("' + plateLayer.name + '").effect("Roundness")("Slider")';
-                var mOrig = mEff.addProperty("ADBE Slider Control"); mOrig.name = "Origin Point (0-8)"; mOrig.property("Slider").expression = 'thisComp.layer("' + plateLayer.name + '").effect("Origin Point (0-8)")("Slider")';
-                var mInDur = mEff.addProperty("ADBE Slider Control"); mInDur.name = "In Duration (sec)"; mInDur.property("Slider").expression = 'thisComp.layer("' + plateLayer.name + '").effect("In Duration (sec)")("Slider")';
-                var mOutDur = mEff.addProperty("ADBE Slider Control"); mOutDur.name = "Out Duration (sec)"; mOutDur.property("Slider").expression = 'thisComp.layer("' + plateLayer.name + '").effect("Out Duration (sec)")("Slider")';
-
-                var mContents = matteLayer.property("ADBE Root Vectors Group");
-                var mShapeGroup = mContents.addProperty("ADBE Vector Group");
-                mShapeGroup.name = "Plate Box";
-                var mGroupContents = mShapeGroup.property("Contents");
-                var mRect = mGroupContents.addProperty("ADBE Vector Shape - Rect");
-                mRect.name = "Rectangle Path 1";
-                mRect.property("Size").expression = rect.property("Size").expression;
-                mRect.property("Roundness").expression = rect.property("Roundness").expression;
-
-                var mFill = mGroupContents.addProperty("ADBE Vector Graphic - Fill");
-                mFill.property("Color").setValue([1.0, 1.0, 1.0, 1.0]);
-                mFill.property("Opacity").setValue(100);
-
-                matteLayer.property("Position").expression = plateLayer.property("Position").expression;
-                matteLayer.property("Anchor Point").expression = plateLayer.property("Anchor Point").expression;
-                matteLayer.property("Scale").expression = plateLayer.property("Scale").expression;
-
-                // Назначаем Track Matte для слоев
-                for (var j = 0; j < selLayers.length; j++) {
-                    var targetL = selLayers[j];
-                    try {
-                        if (typeof targetL.setTrackMatte === "function") {
-                            targetL.setTrackMatte(matteLayer, TrackMatteType.ALPHA);
-                        } else if (typeof TrackMatteType !== "undefined" && TrackMatteType.ALPHA !== undefined) {
-                            targetL.trackMatteType = TrackMatteType.ALPHA;
-                        }
-                    } catch (tme) {}
-
-                    // 9. Анимация выезда текста (Slide In)
-                    if (config.animateTextIn) {
-                        var slideDir = config.textSlideDirection || 'left';
-                        var delay = 0.08 * (j + 1);
-                        targetL.property("Position").expression = 
-                            'var delay = ' + delay + ';\n' +
-                            'var dur = 0.45;\n' +
-                            'var tStart = inPoint + delay;\n' +
-                            'function easeOutCubic(t, b, c, d) { t = t/d - 1; return c*(t*t*t + 1) + b; }\n' +
-                            'var dir = "' + slideDir + '";\n' +
-                            'var offset = [-120, 0];\n' +
-                            'if (dir === "right") offset = [120, 0];\n' +
-                            'else if (dir === "bottom") offset = [0, 50];\n' +
-                            'else if (dir === "top") offset = [0, -50];\n' +
-                            'if (time < tStart) value + offset;\n' +
-                            'else if (time < tStart + dur) {\n' +
-                            '  var factor = 1 - easeOutCubic(time - tStart, 0, 1, dur);\n' +
-                            '  value + [offset[0] * factor, offset[1] * factor];\n' +
-                            '} else value;';
-                    }
-                }
-            }
+                'else {\n' +
+                '  var cx = (minX + maxX)/2 + (padR - padL)/2;\n' +
+                '  var cy = (minY + maxY)/2 + (padB - padT)/2;\n' +
+                '  hasParent ? fromComp([cx, cy]) : [cx, cy];\n' +
+                '}';
 
             app.endUndoGroup();
 
