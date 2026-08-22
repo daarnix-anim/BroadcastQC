@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>After Effects Auto-Plate Interactive Playground | Адаптивная плашка</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0b0d13;
+      --panel-bg: #141722;
+      --card-bg: #1b2030;
+      --card-border: #293046;
+      --accent: #4f80ff;
+      --accent-hover: #3b6ae8;
+      --accent-glow: rgba(79, 128, 255, 0.25);
+      --text-main: #f0f3fa;
+      --text-muted: #8b95a5;
+      --border: #23293b;
+      --debug-text: #00e5ff;
+      --debug-box: #ff0077;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      background: linear-gradient(135deg, #6366f1, #3b82f6);
+      color: #fff;
+      font-weight: 800;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .subtitle {
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+
+    .main-container {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      flex: 1;
+      height: calc(100vh - 60px);
+      overflow: hidden;
+    }
+
+    /* VIEWPORT */
+    .viewport-area {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      background: radial-gradient(circle at center, #181d2c 0%, #080a0f 100%);
+      overflow: auto;
+      padding: 24px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .stage-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 960px;
+      aspect-ratio: 16 / 9;
+      background: #0f121a;
+      border-radius: 12px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background-image: 
+        linear-gradient(45deg, #131722 25%, transparent 25%),
+        linear-gradient(-45deg, #131722 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #131722 75%),
+        linear-gradient(-45deg, transparent 75%, #131722 75%);
+      background-size: 24px 24px;
+      background-position: 0 0, 0 12px, 12px -12px, -12px 0px;
+    }
+
+    .stage-overlay {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 20% 80%, rgba(30, 58, 138, 0.4) 0%, transparent 60%),
+                  radial-gradient(circle at 80% 20%, rgba(88, 28, 135, 0.3) 0%, transparent 50%),
+                  rgba(8, 10, 15, 0.65);
+      pointer-events: none;
+    }
+
+    /* THE AUTO PLATE CONTAINER */
+    .plate-container {
+      position: absolute;
+      transition: padding 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+      transform-origin: 0% 50%;
+    }
+
+    /* THE SHAPE LAYER (BACKGROUND) */
+    .plate-bg {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      transition: border-radius 0.15s ease, background 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+    }
+
+    /* TEXT CONTENT CLIPPING MASK (TRACK MATTE SIMULATION) */
+    .matte-clipper {
+      position: relative;
+      z-index: 2;
+      overflow: hidden; /* Clips elements outside plate boundaries */
+      transition: border-radius 0.15s ease;
+    }
+
+    .matte-clipper.no-mask {
+      overflow: visible;
+    }
+
+    /* TEXT CONTENT WRAPPER */
+    .text-layers-wrapper {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      width: max-content;
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .text-layer {
+      position: relative;
+      transition: font-size 0.15s ease;
+      white-space: nowrap;
+      line-height: 1.25;
+    }
+
+    .text-layer-1 {
+      font-size: 28px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+    }
+
+    .text-layer-2 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #38bdf8;
+      letter-spacing: 0.2px;
+    }
+
+    .text-layer-3 {
+      font-size: 14px;
+      font-weight: 400;
+      color: #94a3b8;
+      letter-spacing: 0.1px;
+    }
+
+    /* CONTROLS SIDEBAR */
+    .sidebar {
+      background: var(--panel-bg);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 18px;
+      gap: 16px;
+    }
+
+    .section-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .section-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #cbd5e1;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .val-display {
+      color: var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 5px;
+      background: #0f121a;
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent-glow);
+      cursor: pointer;
+      border: 1.5px solid #ffffff;
+    }
+
+    input[type="text"], select {
+      background: #0f121a;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      color: #fff;
+      padding: 6px 8px;
+      font-size: 12px;
+      outline: none;
+      font-family: inherit;
+    }
+
+    /* 3x3 ORIGIN GRID */
+    .origin-grid-3x3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      max-width: 140px;
+      background: #0f121a;
+      padding: 4px;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+    }
+
+    .origin-cell {
+      background: #1b2030;
+      border: 1px solid var(--card-border);
+      color: #94a3b8;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 6px 0;
+      text-align: center;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.12s ease;
+      user-select: none;
+    }
+
+    .origin-cell:hover {
+      background: rgba(79, 128, 255, 0.2);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .origin-cell.active {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+      box-shadow: 0 0 6px rgba(79, 128, 255, 0.4);
+    }
+
+    .preset-chips {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      background: #0f121a;
+      border: 1px solid var(--card-border);
+      color: #94a3b8;
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+
+    .chip:hover {
+      background: #1e2436;
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .chip.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .btn-action {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-weight: 700;
+      font-size: 12.5px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+      transition: all 0.15s ease;
+      width: 100%;
+    }
+
+    .btn-action:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-area">
+      <span class="badge">Broadcast QC 2.0</span>
+      <div>
+        <h1>Интерактивный стенд: Адаптивная плашка (Auto-Plate)</h1>
+        <div class="subtitle">Отступы, скругление, 9 опорных точек и Track Matte маскирование</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="chip active" id="btnPlayIn" onclick="playInAnimation()">▶ Появление (In)</button>
+      <button class="chip" id="btnPlayOut" onclick="playOutAnimation()">◀ Уход (Out)</button>
+    </div>
+  </header>
+
+  <div class="main-container">
+    <!-- VIEWPORT STAGE -->
+    <div class="viewport-area">
+      <div class="stage-wrapper" id="stage">
+        <div class="stage-overlay"></div>
+
+        <!-- AUTO-SIZED DYNAMIC PLATE -->
+        <div class="plate-container" id="plateContainer">
+          <div class="plate-bg" id="plateBg"></div>
+          
+          <div class="matte-clipper" id="matteClipper">
+            <div class="text-layers-wrapper" id="textWrapper">
+              <div class="text-layer text-layer-1" id="dispLine1">АЛЕКСАНДР ВОЛКОВ</div>
+              <div class="text-layer text-layer-2" id="dispLine2">Главный арт-директор</div>
+              <div class="text-layer text-layer-3" id="dispLine3">Отдел эфирного оформления и моушн-дизайна</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTROLS SIDEBAR -->
+    <div class="sidebar">
+      
+      <!-- 1. ТЕКСТОВЫЕ СЛОИ -->
+      <div class="section-card">
+        <div class="section-title">
+          <span>Текстовые слои (3 шт.)</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div class="field">
+            <label>Слой 1: Имя / Заголовок</label>
+            <input type="text" id="inputLine1" value="АЛЕКСАНДР ВОЛКОВ" oninput="updateText()">
+          </div>
+          <div class="field">
+            <label>Слой 2: Должность / Подзаголовок</label>
+            <input type="text" id="inputLine2" value="Главный арт-директор" oninput="updateText()">
+          </div>
+          <div class="field">
+            <label>Слой 3: Дополнительная информация</label>
+            <input type="text" id="inputLine3" value="Отдел эфирного оформления и моушн-дизайна" oninput="updateText()">
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. ОТСТУПЫ (PADDING) -->
+      <div class="section-card">
+        <div class="section-title">
+          <span>Отступы плашки (Padding)</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+          <div class="field">
+            <label>Top: <span class="val-display" id="padTopVal">20px</span></label>
+            <input type="range" id="padTop" min="0" max="80" value="20" oninput="updatePadding()">
+          </div>
+          <div class="field">
+            <label>Bottom: <span class="val-display" id="padBottomVal">20px</span></label>
+            <input type="range" id="padBottom" min="0" max="80" value="20" oninput="updatePadding()">
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div class="field">
+            <label>Left: <span class="val-display" id="padLeftVal">30px</span></label>
+            <input type="range" id="padLeft" min="0" max="100" value="30" oninput="updatePadding()">
+          </div>
+          <div class="field">
+            <label>Right: <span class="val-display" id="padRightVal">30px</span></label>
+            <input type="range" id="padRight" min="0" max="100" value="30" oninput="updatePadding()">
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. СКРУГЛЕНИЕ УГЛОВ -->
+      <div class="section-card">
+        <div class="section-title">
+          <span>Скругление углов (Roundness)</span>
+          <span class="val-display" id="radiusVal">18px</span>
+        </div>
+        <input type="range" id="cornerRadius" min="0" max="60" value="18" oninput="updateRadius()">
+        <div class="preset-chips" style="margin-top: 8px;">
+          <div class="chip" onclick="setRadius(0)">0px</div>
+          <div class="chip" onclick="setRadius(8)">8px</div>
+          <div class="chip active" onclick="setRadius(18)">18px</div>
+          <div class="chip" onclick="setRadius(50)">50px (Pill)</div>
+        </div>
+      </div>
+
+      <!-- 4. АНИМАЦИЯ И 9 ОПОРНЫХ ТОЧЕК -->
+      <div class="section-card">
+        <div class="section-title">
+          <span>Опорная точка (9 Origin Points)</span>
+          <span style="font-size: 10px; color: var(--accent);" id="originLabel">Left-Center</span>
+        </div>
+        
+        <div style="display: flex; gap: 14px; align-items: center; margin-bottom: 10px;">
+          <div class="origin-grid-3x3" id="originGrid">
+            <div class="origin-cell" onclick="setOrigin(0, '0% 0%', 'Top-Left')">↖</div>
+            <div class="origin-cell" onclick="setOrigin(1, '50% 0%', 'Top-Center')">↑</div>
+            <div class="origin-cell" onclick="setOrigin(2, '100% 0%', 'Top-Right')">↗</div>
+            <div class="origin-cell active" onclick="setOrigin(3, '0% 50%', 'Left-Center')">←</div>
+            <div class="origin-cell" onclick="setOrigin(4, '50% 50%', 'Center')">•</div>
+            <div class="origin-cell" onclick="setOrigin(5, '100% 50%', 'Right-Center')">→</div>
+            <div class="origin-cell" onclick="setOrigin(6, '0% 100%', 'Bottom-Left')">↙</div>
+            <div class="origin-cell" onclick="setOrigin(7, '50% 100%', 'Bottom-Center')">↓</div>
+            <div class="origin-cell" onclick="setOrigin(8, '100% 100%', 'Bottom-Right')">↘</div>
+          </div>
+          <div style="flex: 1; font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+            Кликните на угол или грань, откуда плашка должна вырастать при появлении.
+          </div>
+        </div>
+
+        <div class="field" style="margin-bottom: 8px;">
+          <label>Ось расширения:</label>
+          <select id="animTypeSelect" onchange="updateAnimMode()">
+            <option value="X">По оси X (Горизонтально)</option>
+            <option value="Y">По оси Y (Вертикально)</option>
+            <option value="XY">По обеим осям (X + Y)</option>
+          </select>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border); padding-top: 8px;">
+          <label style="cursor: pointer;">
+            <input type="checkbox" id="chkMaskToggle" checked onchange="toggleMask()">
+            <span style="margin-left: 6px; color: #fff;">Маскирование (Track Matte)</span>
+          </label>
+          <label style="cursor: pointer;">
+            <input type="checkbox" id="chkSlideToggle" checked>
+            <span style="margin-left: 6px; color: #fff;">Выезд текста из-за границы</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 5. СТИЛЬ -->
+      <div class="section-card">
+        <div class="section-title">
+          <span>Стиль плашки</span>
+        </div>
+        <div class="preset-chips">
+          <div class="chip active" onclick="setStyle('glass')">Glassmorphism</div>
+          <div class="chip" onclick="setStyle('dark')">Solid Dark</div>
+          <div class="chip" onclick="setStyle('gradient')">Cyber Accent</div>
+          <div class="chip" onclick="setStyle('light')">Clean Light</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const dispLine1 = document.getElementById('dispLine1');
+    const dispLine2 = document.getElementById('dispLine2');
+    const dispLine3 = document.getElementById('dispLine3');
+    const textWrapper = document.getElementById('textWrapper');
+    const plateBg = document.getElementById('plateBg');
+    const plateContainer = document.getElementById('plateContainer');
+    const matteClipper = document.getElementById('matteClipper');
+    const originLabel = document.getElementById('originLabel');
+
+    let currentOrigin = '0% 50%';
+    let currentAnimMode = 'X';
+
+    function updateText() {
+      dispLine1.textContent = document.getElementById('inputLine1').value || ' ';
+      dispLine2.textContent = document.getElementById('inputLine2').value || ' ';
+      dispLine3.textContent = document.getElementById('inputLine3').value || ' ';
+    }
+
+    function updatePadding() {
+      const top = document.getElementById('padTop').value;
+      const bottom = document.getElementById('padBottom').value;
+      const left = document.getElementById('padLeft').value;
+      const right = document.getElementById('padRight').value;
+
+      document.getElementById('padTopVal').textContent = top + 'px';
+      document.getElementById('padBottomVal').textContent = bottom + 'px';
+      document.getElementById('padLeftVal').textContent = left + 'px';
+      document.getElementById('padRightVal').textContent = right + 'px';
+
+      plateContainer.style.paddingTop = top + 'px';
+      plateContainer.style.paddingBottom = bottom + 'px';
+      plateContainer.style.paddingLeft = left + 'px';
+      plateContainer.style.paddingRight = right + 'px';
+    }
+
+    function updateRadius() {
+      const radius = document.getElementById('cornerRadius').value;
+      document.getElementById('radiusVal').textContent = radius + 'px';
+      plateBg.style.borderRadius = radius + 'px';
+      matteClipper.style.borderRadius = Math.max(0, radius - 4) + 'px';
+    }
+
+    function setRadius(val) {
+      document.getElementById('cornerRadius').value = val;
+      updateRadius();
+      document.querySelectorAll('.preset-chips .chip').forEach(c => {
+        if (c.textContent.includes(val + 'px')) c.classList.add('active');
+        else if (c.textContent.includes('px')) c.classList.remove('active');
+      });
+    }
+
+    function setOrigin(id, originVal, name) {
+      currentOrigin = originVal;
+      plateContainer.style.transformOrigin = originVal;
+      originLabel.textContent = name;
+      document.querySelectorAll('.origin-cell').forEach((c, idx) => {
+        if (idx === id) c.classList.add('active');
+        else c.classList.remove('active');
+      });
+      playInAnimation();
+    }
+
+    function updateAnimMode() {
+      currentAnimMode = document.getElementById('animTypeSelect').value;
+      playInAnimation();
+    }
+
+    function toggleMask() {
+      const isMasked = document.getElementById('chkMaskToggle').checked;
+      if (isMasked) {
+        matteClipper.classList.remove('no-mask');
+      } else {
+        matteClipper.classList.add('no-mask');
+      }
+    }
+
+    function playInAnimation() {
+      plateContainer.style.transition = 'none';
+      textWrapper.style.transition = 'none';
+
+      let initScale = 'scaleX(0)';
+      if (currentAnimMode === 'Y') initScale = 'scaleY(0)';
+      else if (currentAnimMode === 'XY') initScale = 'scale(0)';
+
+      plateContainer.style.transform = initScale;
+      plateContainer.style.opacity = '0.3';
+
+      const slideEnabled = document.getElementById('chkSlideToggle').checked;
+      if (slideEnabled) {
+        textWrapper.style.transform = 'translateX(-120px)';
+        textWrapper.style.opacity = '0';
+      }
+
+      setTimeout(() => {
+        plateContainer.style.transition = 'transform 0.45s cubic-bezier(0.17, 0.89, 0.32, 1.25), opacity 0.3s ease';
+        plateContainer.style.transform = 'scale(1)';
+        plateContainer.style.opacity = '1';
+
+        if (slideEnabled) {
+          setTimeout(() => {
+            textWrapper.style.transition = 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease';
+            textWrapper.style.transform = 'translateX(0)';
+            textWrapper.style.opacity = '1';
+          }, 80);
+        }
+      }, 30);
+    }
+
+    function playOutAnimation() {
+      plateContainer.style.transition = 'transform 0.35s cubic-bezier(0.6, -0.28, 0.735, 0.045), opacity 0.3s ease';
+      textWrapper.style.transition = 'opacity 0.2s ease, transform 0.25s ease';
+      
+      textWrapper.style.opacity = '0';
+      textWrapper.style.transform = 'translateX(60px)';
+
+      let targetScale = 'scaleX(0)';
+      if (currentAnimMode === 'Y') targetScale = 'scaleY(0)';
+      else if (currentAnimMode === 'XY') targetScale = 'scale(0)';
+
+      plateContainer.style.transform = targetScale;
+      plateContainer.style.opacity = '0';
+    }
+
+    function setStyle(style) {
+      if (style === 'glass') {
+        plateBg.style.background = 'linear-gradient(135deg, rgba(26, 34, 52, 0.88) 0%, rgba(13, 17, 26, 0.92) 100%)';
+        plateBg.style.backdropFilter = 'blur(12px)';
+        plateBg.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+        plateBg.style.boxShadow = '0 12px 35px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.2)';
+      } else if (style === 'dark') {
+        plateBg.style.background = '#0a0d14';
+        plateBg.style.backdropFilter = 'none';
+        plateBg.style.border = '1px solid #1f2738';
+        plateBg.style.boxShadow = '0 10px 30px rgba(0,0,0,0.7)';
+      } else if (style === 'gradient') {
+        plateBg.style.background = 'linear-gradient(90deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 58, 138, 0.9) 60%, rgba(14, 165, 233, 0.3) 100%)';
+        plateBg.style.backdropFilter = 'blur(8px)';
+        plateBg.style.border = '1px solid rgba(56, 189, 248, 0.4)';
+        plateBg.style.boxShadow = '0 10px 30px rgba(14, 165, 233, 0.2)';
+      } else if (style === 'light') {
+        plateBg.style.background = 'rgba(255, 255, 255, 0.95)';
+        plateBg.style.backdropFilter = 'blur(10px)';
+        plateBg.style.border = '1px solid rgba(255, 255, 255, 0.8)';
+        plateBg.style.boxShadow = '0 15px 35px rgba(0,0,0,0.3)';
+        dispLine1.style.color = '#0f172a';
+        dispLine2.style.color = '#0284c7';
+        dispLine3.style.color = '#475569';
+        return;
+      }
+      dispLine1.style.color = '#ffffff';
+      dispLine2.style.color = '#38bdf8';
+      dispLine3.style.color = '#94a3b8';
+    }
+
+    // Initial setup
+    updatePadding();
+    updateRadius();
+    setStyle('glass');
+    playInAnimation();
+  </script>
+</body>
+</html>

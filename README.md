@@ -1,7 +1,7 @@
 # Broadcast QC — Расширение контроля качества для Adobe After Effects 2026.2
 
 [![Release](https://img.shields.io/github/v/release/daarnix-anim/BroadcastQC?color=00d2ff&label=Release)](https://github.com/daarnix-anim/BroadcastQC/releases)
-[![Tests](https://img.shields.io/badge/Tests-35%20Passed-10b981)](https://github.com/daarnix-anim/BroadcastQC)
+[![Tests](https://img.shields.io/badge/Tests-42%20Passed-10b981)](https://github.com/daarnix-anim/BroadcastQC)
 [![Host](https://img.shields.io/badge/Host-After%20Effects%202026.2%2B-blue)](https://www.adobe.com/products/aftereffects.html)
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 
@@ -11,6 +11,7 @@
 
 ## ⚡ Ключевые возможности
 
+* ⚡ **Адаптивная плашка (Auto-Plate)**: автоматическое создание параметрической шейповой плашки под несколько текстовых слоев и объектов с динамическим охватом, независимыми отступами (Paddings), скруглением углов, маскированием (Track Matte) и анимацией появления из 9 опорных точек (Origin Points).
 * 📝 **Орфография и ТВ-типографика**: масштабный оффлайн-словарь (RU/EN) + гибридный Яндекс.Спеллер, удаление висячих предлогов, расстановка неразрывных пробелов, кавычек-ёлочек и длинных тире.
 * ✨ **1-Click Auto-Fix & Выпадающий список замен**: мгновенное исправление опечаток прямо в текстовых слоях After Effects с полным сохранением цвета, размера, кернинга и шрифта.
 * 📁 **Рекурсивное сканирование Pre-comps и всего проекта**: проверка текстовых слоев во всех вложенных композициях любой глубины и поиск по всему `.aep` проекту.
@@ -25,7 +26,7 @@
 ## 🚀 Установка
 
 ### Быстрая установка (1 клик):
-1. Скачайте архив релиза [broadcast-qc-v0.8.3.zip](https://github.com/daarnix-anim/BroadcastQC/releases/latest).
+1. Скачайте архив релиза [broadcast-qc-v0.9.0.zip](https://github.com/daarnix-anim/BroadcastQC/releases/latest).
 2. Распакуйте архив в любую папку.
 3. Запустите файл `install.bat` (или выполните `install.ps1` через PowerShell).
 4. Запустите или перезапустите **Adobe After Effects 2026**.

@@ -9,8 +9,9 @@ import { UserDictionary } from '../../packages/spelling/index.js';
 import { BROADCAST_PRESETS } from '../../packages/safe-zone/index.js';
 import { AIAgent } from '../../packages/ai/index.js';
 import { AutoUpdater } from '../../packages/updater/index.js';
+import { AutoPlateEngine, DEFAULT_PLATE_CONFIG, ORIGIN_POINTS, STYLE_PRESETS } from '../../packages/auto-plate/index.js';
 
-const APP_CURRENT_VERSION = '0.8.3';
+const APP_CURRENT_VERSION = '0.9.0';
 
 // ==========================================
 // 1. Global Error Boundary & Toast System
@@ -284,6 +285,7 @@ function init() {
   initTabs();
   initDictionaryUI();
   initSafeZoneUI();
+  initAutoPlateUI();
   initAIUI();
   initUpdaterUI();
   initSummaryFilterUI();
@@ -612,7 +614,284 @@ function applySafeZoneOverlayToAE(enable) {
 }
 
 // ==========================================
-// 8. AI Settings UI
+// 8. Auto-Plate (Адаптивная плашка) UI
+// ==========================================
+
+const STORAGE_PLATE_KEY = 'broadcast_qc_plate_preset';
+
+let plateState = { ...DEFAULT_PLATE_CONFIG };
+try {
+  const savedPlate = localStorage.getItem(STORAGE_PLATE_KEY);
+  if (savedPlate) {
+    plateState = { ...plateState, ...JSON.parse(savedPlate) };
+  }
+} catch (e) {}
+
+const ORIGIN_LABELS = {
+  0: 'Сверху Слева (Top-Left)',
+  1: 'Сверху Центр (Top-Center)',
+  2: 'Сверху Справа (Top-Right)',
+  3: 'Слева Центр (Left-Center)',
+  4: 'По центру (Center)',
+  5: 'Справа Центр (Right-Center)',
+  6: 'Снизу Слева (Bottom-Left)',
+  7: 'Снизу Центр (Bottom-Center)',
+  8: 'Снизу Справа (Bottom-Right)'
+};
+
+function initAutoPlateUI() {
+  const padTopInput = document.getElementById('platePadTop');
+  const padTopVal = document.getElementById('platePadTopVal');
+  const padBottomInput = document.getElementById('platePadBottom');
+  const padBottomVal = document.getElementById('platePadBottomVal');
+  const padLeftInput = document.getElementById('platePadLeft');
+  const padLeftVal = document.getElementById('platePadLeftVal');
+  const padRightInput = document.getElementById('platePadRight');
+  const padRightVal = document.getElementById('platePadRightVal');
+
+  const roundnessInput = document.getElementById('plateRoundness');
+  const roundnessVal = document.getElementById('plateRoundnessVal');
+  const opacityInput = document.getElementById('plateOpacity');
+  const opacityVal = document.getElementById('plateOpacityVal');
+
+  const animTypeSelect = document.getElementById('plateAnimType');
+  const originGrid = document.getElementById('originGrid');
+  const originPointLabel = document.getElementById('originPointLabel');
+  const animInDurSelect = document.getElementById('plateAnimInDur');
+  const animOutDurSelect = document.getElementById('plateAnimOutDur');
+
+  const chkPlateMask = document.getElementById('chkPlateMask');
+  const chkTextSlideIn = document.getElementById('chkTextSlideIn');
+  const textSlideDirectionGroup = document.getElementById('textSlideDirectionGroup');
+  const plateTextSlideDir = document.getElementById('plateTextSlideDir');
+
+  const btnCreateAutoPlate = document.getElementById('btnCreateAutoPlate');
+  const plateStyleChips = document.getElementById('plateStyleChips');
+
+  // Sync initial values to UI
+  if (padTopInput && padTopVal) {
+    padTopInput.value = plateState.paddingTop;
+    padTopVal.textContent = `${plateState.paddingTop}px`;
+    padTopInput.addEventListener('input', () => {
+      plateState.paddingTop = parseInt(padTopInput.value, 10) || 0;
+      padTopVal.textContent = `${plateState.paddingTop}px`;
+      savePlateState();
+    });
+  }
+
+  if (padBottomInput && padBottomVal) {
+    padBottomInput.value = plateState.paddingBottom;
+    padBottomVal.textContent = `${plateState.paddingBottom}px`;
+    padBottomInput.addEventListener('input', () => {
+      plateState.paddingBottom = parseInt(padBottomInput.value, 10) || 0;
+      padBottomVal.textContent = `${plateState.paddingBottom}px`;
+      savePlateState();
+    });
+  }
+
+  if (padLeftInput && padLeftVal) {
+    padLeftInput.value = plateState.paddingLeft;
+    padLeftVal.textContent = `${plateState.paddingLeft}px`;
+    padLeftInput.addEventListener('input', () => {
+      plateState.paddingLeft = parseInt(padLeftInput.value, 10) || 0;
+      padLeftVal.textContent = `${plateState.paddingLeft}px`;
+      savePlateState();
+    });
+  }
+
+  if (padRightInput && padRightVal) {
+    padRightInput.value = plateState.paddingRight;
+    padRightVal.textContent = `${plateState.paddingRight}px`;
+    padRightInput.addEventListener('input', () => {
+      plateState.paddingRight = parseInt(padRightInput.value, 10) || 0;
+      padRightVal.textContent = `${plateState.paddingRight}px`;
+      savePlateState();
+    });
+  }
+
+  if (roundnessInput && roundnessVal) {
+    roundnessInput.value = plateState.roundness;
+    roundnessVal.textContent = `${plateState.roundness}px`;
+    roundnessInput.addEventListener('input', () => {
+      plateState.roundness = parseInt(roundnessInput.value, 10) || 0;
+      roundnessVal.textContent = `${plateState.roundness}px`;
+      updateRoundnessChips(plateState.roundness);
+      savePlateState();
+    });
+  }
+
+  // Roundness Preset Chips
+  const roundChips = document.querySelectorAll('#tab-plate .chip-btn[data-round]');
+  roundChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      const val = parseInt(chip.getAttribute('data-round'), 10);
+      plateState.roundness = val;
+      if (roundnessInput) roundnessInput.value = val;
+      if (roundnessVal) roundnessVal.textContent = `${val}px`;
+      updateRoundnessChips(val);
+      savePlateState();
+    });
+  });
+
+  function updateRoundnessChips(val) {
+    roundChips.forEach(c => {
+      if (parseInt(c.getAttribute('data-round'), 10) === val) {
+        c.classList.add('active');
+      } else {
+        c.classList.remove('active');
+      }
+    });
+  }
+
+  // Style Presets
+  const styleChips = plateStyleChips?.querySelectorAll('.chip-btn[data-style]');
+  styleChips?.forEach(chip => {
+    chip.addEventListener('click', () => {
+      const st = chip.getAttribute('data-style');
+      plateState.style = st;
+      styleChips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      const preset = STYLE_PRESETS[st.toUpperCase()];
+      if (preset && opacityInput && opacityVal) {
+        opacityInput.value = preset.opacity;
+        opacityVal.textContent = `${preset.opacity}%`;
+        plateState.opacity = preset.opacity;
+      }
+      savePlateState();
+    });
+  });
+
+  if (opacityInput && opacityVal) {
+    opacityInput.value = plateState.opacity !== undefined ? plateState.opacity : 90;
+    opacityVal.textContent = `${opacityInput.value}%`;
+    opacityInput.addEventListener('input', () => {
+      const op = parseInt(opacityInput.value, 10);
+      plateState.opacity = op;
+      opacityVal.textContent = `${op}%`;
+      savePlateState();
+    });
+  }
+
+  // Origin Grid
+  const originCells = originGrid?.querySelectorAll('.origin-cell');
+  originCells?.forEach(cell => {
+    cell.addEventListener('click', () => {
+      const origId = parseInt(cell.getAttribute('data-origin'), 10);
+      plateState.originPoint = origId;
+      originCells.forEach(c => c.classList.remove('active'));
+      cell.classList.add('active');
+      if (originPointLabel) {
+        originPointLabel.textContent = ORIGIN_LABELS[origId] || `Точка #${origId}`;
+      }
+      savePlateState();
+    });
+  });
+
+  if (originPointLabel) {
+    originPointLabel.textContent = ORIGIN_LABELS[plateState.originPoint] || 'Left-Center';
+  }
+
+  // Animation Controls
+  if (animTypeSelect) {
+    animTypeSelect.value = plateState.animType || 'expand_x';
+    animTypeSelect.addEventListener('change', () => {
+      plateState.animType = animTypeSelect.value;
+      savePlateState();
+    });
+  }
+
+  if (animInDurSelect) {
+    animInDurSelect.value = String(plateState.animInDuration || 0.45);
+    animInDurSelect.addEventListener('change', () => {
+      plateState.animInDuration = parseFloat(animInDurSelect.value);
+      savePlateState();
+    });
+  }
+
+  if (animOutDurSelect) {
+    animOutDurSelect.value = String(plateState.animOutDuration || 0.35);
+    animOutDurSelect.addEventListener('change', () => {
+      plateState.animOutDuration = parseFloat(animOutDurSelect.value);
+      savePlateState();
+    });
+  }
+
+  // Mask & Text Slide Toggles
+  if (chkPlateMask) {
+    chkPlateMask.checked = plateState.enableMask !== false;
+    chkPlateMask.addEventListener('change', () => {
+      plateState.enableMask = chkPlateMask.checked;
+      savePlateState();
+    });
+  }
+
+  if (chkTextSlideIn) {
+    chkTextSlideIn.checked = plateState.animateTextIn !== false;
+    if (textSlideDirectionGroup) {
+      textSlideDirectionGroup.style.display = chkTextSlideIn.checked ? 'block' : 'none';
+    }
+    chkTextSlideIn.addEventListener('change', () => {
+      plateState.animateTextIn = chkTextSlideIn.checked;
+      if (textSlideDirectionGroup) {
+        textSlideDirectionGroup.style.display = chkTextSlideIn.checked ? 'block' : 'none';
+      }
+      savePlateState();
+    });
+  }
+
+  if (plateTextSlideDir) {
+    plateTextSlideDir.value = plateState.textSlideDirection || 'left';
+    plateTextSlideDir.addEventListener('change', () => {
+      plateState.textSlideDirection = plateTextSlideDir.value;
+      savePlateState();
+    });
+  }
+
+  // Action Button: Create Auto-Plate
+  btnCreateAutoPlate?.addEventListener('click', () => {
+    createAutoPlateInAE();
+  });
+}
+
+function savePlateState() {
+  try {
+    localStorage.setItem(STORAGE_PLATE_KEY, JSON.stringify(plateState));
+  } catch (e) {}
+}
+
+function createAutoPlateInAE() {
+  const prepared = AutoPlateEngine.prepareConfig(plateState);
+  const jsonPayload = JSON.stringify(prepared);
+
+  if (!csInterface.isCEP) {
+    // Browser Mock Test Mode
+    showToast(`⚡ [Тест] Создана плашка: отступы L:${prepared.paddingLeft}/R:${prepared.paddingRight}/T:${prepared.paddingTop}/B:${prepared.paddingBottom}px, скругление ${prepared.roundness}px, точка #${prepared.originPoint}`, 'success', 4000);
+    playChime(true);
+    return;
+  }
+
+  showToast('Создание адаптивной плашки в After Effects...', 'info', 2000);
+
+  const evalStr = `BroadcastQCHost.createAutoPlate(${JSON.stringify(jsonPayload)})`;
+  csInterface.evalScript(evalStr, (res) => {
+    try {
+      const data = JSON.parse(res);
+      if (data && data.success) {
+        showToast(`✅ ${data.message} («${data.plateLayerName}»)`, 'success', 4500);
+        playChime(true);
+      } else {
+        showToast(`❌ ${data?.error || 'Не удалось создать плашку'}`, 'error', 5000);
+        playChime(false);
+      }
+    } catch (e) {
+      showToast('❌ Ошибка связи с After Effects при создании плашки', 'error');
+      playChime(false);
+    }
+  });
+}
+
+// ==========================================
+// 9. AI Settings UI
 // ==========================================
 
 function initAIUI() {

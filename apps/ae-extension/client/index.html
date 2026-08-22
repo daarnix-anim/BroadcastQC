@@ -32,8 +32,8 @@
             </div>
             <div class="modal-body">
                 <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                    <div style="font-weight: 700; font-size: 13px; color: var(--accent);" id="modalNewVersionTitle">Версия v0.8.3</div>
-                    <div style="font-size: 10.5px; color: var(--text-muted);" id="modalCurrentVersion">Текущая: v0.8.3</div>
+                    <div style="font-weight: 700; font-size: 13px; color: var(--accent);" id="modalNewVersionTitle">Версия v0.9.0</div>
+                    <div style="font-size: 10.5px; color: var(--text-muted);" id="modalCurrentVersion">Текущая: v0.9.0</div>
                 </div>
 
                 <div style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Что нового:</div>
@@ -62,7 +62,7 @@
     <!-- Header -->
     <header class="app-header">
         <div class="logo-area">
-            <span class="logo-badge" id="headerAppVersionBadge">v0.8.3</span>
+            <span class="logo-badge" id="headerAppVersionBadge">v0.9.0</span>
             <div>
                 <div class="app-title">Broadcast QC</div>
             </div>
@@ -80,6 +80,7 @@
     <nav class="tab-nav">
         <button class="tab-btn active" data-tab="tab-check">Проверка</button>
         <button class="tab-btn" data-tab="tab-safezone">Safe Zone</button>
+        <button class="tab-btn" data-tab="tab-plate">Плашка</button>
         <button class="tab-btn" data-tab="tab-ai">AI Агент</button>
         <button class="tab-btn" data-tab="tab-dict">Словарь</button>
         <button class="tab-btn" data-tab="tab-about">Инфо</button>
@@ -351,12 +352,190 @@
         </div>
     </section>
 
+    <!-- Tab: Auto-Plate (Адаптивная плашка под текст и объекты) -->
+    <section id="tab-plate" class="tab-content">
+        <!-- Main Header Info Card -->
+        <div class="action-card" style="gap: 6px;">
+            <div style="font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: space-between;">
+                <span style="display: flex; align-items: center; gap: 6px;"><span>⚡</span> Адаптивная плашка (Auto-Plate)</span>
+                <span class="badge" style="font-size: 10px; background: rgba(79, 128, 255, 0.15); color: var(--accent); padding: 2px 6px; border-radius: 4px;">AE Dynamic Box</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.4;">
+                Автоматическое создание шейповой плашки под любое количество выделенных текстовых слоев и объектов с динамическим охватом, маскированием (Track Matte) и анимацией.
+            </div>
+        </div>
+
+        <!-- 1. Настройки отступов (Paddings) -->
+        <div class="action-card" style="gap: 10px;">
+            <div style="font-size: 11.5px; font-weight: 700; color: var(--text-main); display: flex; justify-content: space-between; align-items: center;">
+                <span>📐 Отступы плашки (Padding)</span>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div class="form-group">
+                    <label class="form-label" style="display: flex; justify-content: space-between;">
+                        <span>Сверху (Top):</span>
+                        <span id="platePadTopVal" class="val-pill">20px</span>
+                    </label>
+                    <input type="range" id="platePadTop" min="0" max="100" value="20" class="range-slider">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" style="display: flex; justify-content: space-between;">
+                        <span>Снизу (Bottom):</span>
+                        <span id="platePadBottomVal" class="val-pill">20px</span>
+                    </label>
+                    <input type="range" id="platePadBottom" min="0" max="100" value="20" class="range-slider">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div class="form-group">
+                    <label class="form-label" style="display: flex; justify-content: space-between;">
+                        <span>Слева (Left):</span>
+                        <span id="platePadLeftVal" class="val-pill">30px</span>
+                    </label>
+                    <input type="range" id="platePadLeft" min="0" max="150" value="30" class="range-slider">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" style="display: flex; justify-content: space-between;">
+                        <span>Справа (Right):</span>
+                        <span id="platePadRightVal" class="val-pill">30px</span>
+                    </label>
+                    <input type="range" id="platePadRight" min="0" max="150" value="30" class="range-slider">
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Скругление углов (Roundness) -->
+        <div class="action-card" style="gap: 8px;">
+            <div style="font-size: 11.5px; font-weight: 700; color: var(--text-main); display: flex; justify-content: space-between; align-items: center;">
+                <span>🔘 Скругление углов (Roundness)</span>
+                <span id="plateRoundnessVal" class="val-pill">16px</span>
+            </div>
+            <input type="range" id="plateRoundness" min="0" max="60" value="16" class="range-slider">
+            <div class="preset-chips-row" style="display: flex; gap: 5px; flex-wrap: wrap;">
+                <button type="button" class="chip-btn" data-round="0">0px</button>
+                <button type="button" class="chip-btn" data-round="8">8px</button>
+                <button type="button" class="chip-btn active" data-round="16">16px</button>
+                <button type="button" class="chip-btn" data-round="24">24px</button>
+                <button type="button" class="chip-btn" data-round="50">50px (Pill)</button>
+            </div>
+        </div>
+
+        <!-- 3. Стиль плашки (Style Presets) -->
+        <div class="action-card" style="gap: 8px;">
+            <div style="font-size: 11.5px; font-weight: 700; color: var(--text-main);">
+                <span>🎨 Стиль оформления</span>
+            </div>
+            <div class="preset-chips-row" style="display: flex; gap: 6px; flex-wrap: wrap;" id="plateStyleChips">
+                <button type="button" class="chip-btn active" data-style="glass">Glassmorphism</button>
+                <button type="button" class="chip-btn" data-style="dark">Solid Dark</button>
+                <button type="button" class="chip-btn" data-style="gradient">Cyber Accent</button>
+                <button type="button" class="chip-btn" data-style="light">Clean Light</button>
+            </div>
+            <div class="form-group" style="margin-top: 4px;">
+                <label class="form-label" style="display: flex; justify-content: space-between;">
+                    <span>Непрозрачность (Opacity):</span>
+                    <span id="plateOpacityVal" class="val-pill">90%</span>
+                </label>
+                <input type="range" id="plateOpacity" min="10" max="100" value="90" class="range-slider">
+            </div>
+        </div>
+
+        <!-- 4. Анимация появления и 9 опорных точек (Origin Points) -->
+        <div class="action-card" style="gap: 10px;">
+            <div style="font-size: 11.5px; font-weight: 700; color: var(--text-main); display: flex; justify-content: space-between; align-items: center;">
+                <span>🎬 Анимация появления плашки (In/Out)</span>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Тип расширения:</label>
+                <select id="plateAnimType" class="form-select">
+                    <option value="expand_x" selected>Горизонтально (По оси X)</option>
+                    <option value="expand_y">Вертикально (По оси Y)</option>
+                    <option value="expand_both">Диагонально (По осям X и Y)</option>
+                    <option value="fade_expand">Раскрытие с проявлением (Fade + Expand)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                    <span>Опорная точка анимации (Origin):</span>
+                    <span id="originPointLabel" style="font-size: 10.5px; color: var(--accent); font-weight: 600;">Left-Center</span>
+                </label>
+                <!-- 3x3 Origin Grid Selector -->
+                <div class="origin-grid-3x3" id="originGrid">
+                    <button type="button" class="origin-cell" data-origin="0" title="Левый верхний (Top-Left)">↖</button>
+                    <button type="button" class="origin-cell" data-origin="1" title="Верхний центр (Top-Center)">↑</button>
+                    <button type="button" class="origin-cell" data-origin="2" title="Правый верхний (Top-Right)">↗</button>
+                    <button type="button" class="origin-cell active" data-origin="3" title="Левый край (Left-Center)">←</button>
+                    <button type="button" class="origin-cell" data-origin="4" title="Центр (Center)">•</button>
+                    <button type="button" class="origin-cell" data-origin="5" title="Правый край (Right-Center)">→</button>
+                    <button type="button" class="origin-cell" data-origin="6" title="Левый нижний (Bottom-Left)">↙</button>
+                    <button type="button" class="origin-cell" data-origin="7" title="Нижний центр (Bottom-Center)">↓</button>
+                    <button type="button" class="origin-cell" data-origin="8" title="Правый нижний (Bottom-Right)">↘</button>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div class="form-group">
+                    <label class="form-label">In Длительность:</label>
+                    <select id="plateAnimInDur" class="form-select">
+                        <option value="0.3">0.30 сек (Быстро)</option>
+                        <option value="0.45" selected>0.45 сек (Стандарт)</option>
+                        <option value="0.65">0.65 сек (Плавно)</option>
+                        <option value="1.0">1.00 сек (Кино)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Out Длительность:</label>
+                    <select id="plateAnimOutDur" class="form-select">
+                        <option value="0.25">0.25 сек (Быстро)</option>
+                        <option value="0.35" selected>0.35 сек (Стандарт)</option>
+                        <option value="0.5">0.50 сек (Плавно)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Маскирование и заход текста -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 4px; border-top: 1px solid var(--border-color);">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="chkPlateMask" checked>
+                    <span>Использовать плашку как маску (Track Matte)</span>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="chkTextSlideIn" checked>
+                    <span>Анимация выезда текста из-за границ маски</span>
+                </label>
+                <div class="form-group" id="textSlideDirectionGroup" style="margin-left: 20px; margin-top: 2px;">
+                    <label class="form-label" style="font-size: 10px;">Направление выезда текста:</label>
+                    <select id="plateTextSlideDir" class="form-select" style="font-size: 11px; padding: 4px 8px;">
+                        <option value="left" selected>Слева направо (From Left)</option>
+                        <option value="bottom">Снизу вверх (From Bottom)</option>
+                        <option value="right">Справа налево (From Right)</option>
+                        <option value="top">Сверху вниз (From Top)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Button & Instructions -->
+        <div class="action-card" style="gap: 10px;">
+            <button id="btnCreateAutoPlate" class="btn-primary" style="padding: 12px; font-size: 13px; font-weight: 700; width: 100%;">
+                <span>⚡</span> Создать адаптивную плашку
+            </button>
+            <div style="font-size: 10.5px; color: var(--text-muted); line-height: 1.5; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px;">
+                💡 <b>Инструкция:</b> Выделите в таймлайне After Effects все нужные текстовые слои + иконки/логотипы и нажмите кнопку. Все параметры отступов, скругления и анимации остаются доступными в панели <b>Effect Controls</b>.
+            </div>
+        </div>
+    </section>
+
     <!-- Tab 5: About & Updates -->
     <section id="tab-about" class="tab-content">
         <div class="action-card" style="gap: 8px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="font-weight: 700; font-size: 14px;">Broadcast QC Extension</div>
-                <span class="logo-badge" id="appVersionBadge">v0.8.3</span>
+                <span class="logo-badge" id="appVersionBadge">v0.9.0</span>
             </div>
             <div style="font-size: 12px; color: var(--text-secondary);">
                 Интеллектуальный контроль качества для motion-design проектов и ТВ-вещания.
