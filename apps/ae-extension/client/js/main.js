@@ -11,7 +11,7 @@ import { AIAgent } from '../../packages/ai/index.js';
 import { AutoUpdater } from '../../packages/updater/index.js';
 import { AutoPlateEngine, DEFAULT_PLATE_CONFIG, ORIGIN_POINTS, STYLE_PRESETS } from '../../packages/auto-plate/index.js';
 
-const APP_CURRENT_VERSION = '0.9.0';
+const APP_CURRENT_VERSION = '0.9.1';
 
 // ==========================================
 // 1. Global Error Boundary & Toast System
@@ -1048,49 +1048,102 @@ function initUpdaterUI() {
 
   btnUpdateModalClose?.addEventListener('click', closeUpdateModal);
   btnRemindLater?.addEventListener('click', closeUpdateModal);
+  btnPerformUpdate?.addEventListener('click', performUpdateHandler);
+}
 
-  btnPerformUpdate?.addEventListener('click', async () => {
-    if (!currentAvailableUpdate) return;
+const STORAGE_LAST_INSTALLED_KEY = 'broadcast_qc_installed_version';
 
-    btnPerformUpdate.disabled = true;
-    btnRemindLater.disabled = true;
-    btnUpdateModalClose.disabled = true;
-    modalProgressContainer.style.display = 'flex';
+async function performUpdateHandler() {
+  if (!currentAvailableUpdate) return;
 
-    // Target extension directory
-    let targetDir = '';
-    if (csInterface.isCEP) {
-      targetDir = csInterface.getSystemPath(csInterface.SystemPath.EXTENSION);
+  const btnPerform = document.getElementById('btnPerformUpdate');
+  const btnRemind = document.getElementById('btnRemindLater');
+  if (btnPerform) btnPerform.disabled = true;
+  if (btnRemind) btnRemind.disabled = true;
+  if (btnUpdateModalClose) btnUpdateModalClose.disabled = true;
+
+  if (modalProgressContainer) modalProgressContainer.style.display = 'flex';
+
+  // Target extension directory
+  let targetDir = '';
+  if (csInterface.isCEP) {
+    targetDir = csInterface.getSystemPath(csInterface.SystemPath.EXTENSION);
+  }
+
+  try {
+    await autoUpdater.downloadAndInstall(currentAvailableUpdate, targetDir, (progress) => {
+      if (modalProgressStep) modalProgressStep.textContent = progress.step || 'Обновление...';
+      if (modalProgressPercent) modalProgressPercent.textContent = `${Math.round(progress.percent)}%`;
+      if (modalProgressBarFill) modalProgressBarFill.style.width = `${progress.percent}%`;
+    });
+
+    // Mark as installed in localStorage to prevent loop popups
+    try {
+      localStorage.setItem(STORAGE_LAST_INSTALLED_KEY, currentAvailableUpdate.latestVersion);
+    } catch (e) {}
+
+    // Show Success State inside Modal
+    const modalPreUpdateBody = document.getElementById('modalPreUpdateBody');
+    const modalSuccessBody = document.getElementById('modalSuccessBody');
+    const modalFooter = document.getElementById('modalFooter');
+
+    if (modalPreUpdateBody) modalPreUpdateBody.style.display = 'none';
+    if (modalSuccessBody) modalSuccessBody.style.display = 'flex';
+
+    if (modalFooter) {
+      modalFooter.innerHTML = `
+        <button id="btnDismissPostUpdate" class="btn-secondary">Закрыть</button>
+        <button id="btnReloadPanelNow" class="btn-primary">
+          <span>🔄</span> Перезагрузить панель сейчас
+        </button>
+      `;
+
+      document.getElementById('btnDismissPostUpdate')?.addEventListener('click', closeUpdateModal);
+      document.getElementById('btnReloadPanelNow')?.addEventListener('click', () => {
+        forceReloadPanel();
+      });
     }
 
-    try {
-      await autoUpdater.downloadAndInstall(currentAvailableUpdate, targetDir, (progress) => {
-        modalProgressStep.textContent = progress.step || 'Обновление...';
-        modalProgressPercent.textContent = `${Math.round(progress.percent)}%`;
-        modalProgressBarFill.style.width = `${progress.percent}%`;
-      });
+    if (btnUpdateModalClose) btnUpdateModalClose.disabled = false;
+    showToast(`✅ Broadcast QC успешно обновлен до v${currentAvailableUpdate.latestVersion}!`, 'success', 5000);
+    playChime(true);
 
-      showToast(`✅ Broadcast QC успешно обновлен до v${currentAvailableUpdate.latestVersion}! Перезагрузка...`, 'success', 3000);
-      playChime(true);
-
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-    } catch (err) {
-      btnPerformUpdate.disabled = false;
-      btnRemindLater.disabled = false;
-      btnUpdateModalClose.disabled = false;
+  } catch (err) {
+    if (btnPerform) btnPerform.disabled = false;
+    if (btnRemind) btnRemind.disabled = false;
+    if (btnUpdateModalClose) btnUpdateModalClose.disabled = false;
+    if (modalProgressStep) {
       modalProgressStep.textContent = `Ошибка: ${err.message}`;
       modalProgressStep.style.color = 'var(--error)';
-      showToast(`Ошибка установки обновления: ${err.message}`, 'error', 6000);
     }
-  });
+    showToast(`Ошибка установки обновления: ${err.message}`, 'error', 6000);
+  }
+}
+
+function forceReloadPanel() {
+  if (csInterface.isCEP) {
+    try {
+      csInterface.loadJSX('host/index.jsx', () => {});
+    } catch (e) {}
+  }
+  // Hard reload with cache-busting timestamp
+  const cleanUrl = window.location.href.split('?')[0];
+  window.location.href = `${cleanUrl}?t=${Date.now()}`;
 }
 
 async function checkForUpdatesSilent() {
   try {
     const info = await autoUpdater.checkForUpdates();
     if (info && info.hasUpdate) {
+      // Don't pop up again if this version was already installed in this session
+      let lastInstalled = '';
+      try {
+        lastInstalled = localStorage.getItem(STORAGE_LAST_INSTALLED_KEY);
+      } catch (e) {}
+      if (lastInstalled && lastInstalled === info.latestVersion) {
+        console.log('[AutoUpdater] Update v' + info.latestVersion + ' was already installed, awaiting AE restart');
+        return;
+      }
       openUpdateModal(info);
     }
   } catch (e) {
@@ -1100,20 +1153,34 @@ async function checkForUpdatesSilent() {
 
 function openUpdateModal(info) {
   currentAvailableUpdate = info;
-  modalNewVersionTitle.textContent = `Версия v${info.latestVersion} (${info.releaseName || 'Новый релиз'})`;
-  modalCurrentVersion.textContent = `Текущая: v${APP_CURRENT_VERSION}`;
-  modalReleaseNotes.textContent = info.releaseNotes || 'Список изменений не предоставлен.';
+  if (modalNewVersionTitle) modalNewVersionTitle.textContent = `Версия v${info.latestVersion} (${info.releaseName || 'Новый релиз'})`;
+  if (modalCurrentVersion) modalCurrentVersion.textContent = `Текущая: v${APP_CURRENT_VERSION}`;
+  if (modalReleaseNotes) modalReleaseNotes.textContent = info.releaseNotes || 'Список изменений не предоставлен.';
 
-  modalProgressContainer.style.display = 'none';
-  btnPerformUpdate.disabled = false;
-  btnRemindLater.disabled = false;
-  btnUpdateModalClose.disabled = false;
+  const modalPreUpdateBody = document.getElementById('modalPreUpdateBody');
+  const modalSuccessBody = document.getElementById('modalSuccessBody');
+  if (modalPreUpdateBody) modalPreUpdateBody.style.display = 'block';
+  if (modalSuccessBody) modalSuccessBody.style.display = 'none';
 
-  updateModal.style.display = 'flex';
+  if (modalProgressContainer) modalProgressContainer.style.display = 'none';
+  const modalFooter = document.getElementById('modalFooter');
+  if (modalFooter) {
+    modalFooter.innerHTML = `
+      <button id="btnRemindLater" class="btn-secondary">Позже</button>
+      <button id="btnPerformUpdate" class="btn-primary">
+        <span>🚀</span> Обновиться сейчас
+      </button>
+    `;
+    document.getElementById('btnRemindLater')?.addEventListener('click', closeUpdateModal);
+    document.getElementById('btnPerformUpdate')?.addEventListener('click', performUpdateHandler);
+  }
+
+  if (btnUpdateModalClose) btnUpdateModalClose.disabled = false;
+  if (updateModal) updateModal.style.display = 'flex';
 }
 
 function closeUpdateModal() {
-  updateModal.style.display = 'none';
+  if (updateModal) updateModal.style.display = 'none';
 }
 
 // ==========================================
