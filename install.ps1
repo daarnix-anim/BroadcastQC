@@ -19,11 +19,21 @@ foreach ($ver in $csxsVersions) {
 }
 Write-Host "  -> PlayerDebugMode успешно активирован для CSXS 8-18." -ForegroundColor Green
 
-# 2. Определение путей из корня проекта
+# 2. Определение путей (поддержка как архива релиза, так и корня репозитория)
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$sourceExtensionDir = Join-Path $projectRoot "apps\ae-extension"
-$packagesDir = Join-Path $projectRoot "packages"
-$presetsDir = Join-Path $projectRoot "presets"
+
+if (Test-Path (Join-Path $projectRoot "CSXS\manifest.xml")) {
+    # Скрипт запущен внутри распакованного архива релиза
+    $sourceExtensionDir = $projectRoot
+    $isReleasePackage = $true
+} elseif (Test-Path (Join-Path $projectRoot "apps\ae-extension\CSXS\manifest.xml")) {
+    # Скрипт запущен из корня репозитория разработки
+    $sourceExtensionDir = Join-Path $projectRoot "apps\ae-extension"
+    $isReleasePackage = $false
+} else {
+    Write-Host "`n[ОШИБКА] Исходные файлы расширения не найдены (отсутствует CSXS\manifest.xml)." -ForegroundColor Red
+    exit 1
+}
 
 $targetBase = Join-Path $env:APPDATA "Adobe\CEP\extensions"
 $targetExtensionDir = Join-Path $targetBase "com.broadcast.qc"
@@ -42,18 +52,20 @@ if (Test-Path $targetExtensionDir) {
 
 New-Item -Path $targetExtensionDir -ItemType Directory -Force | Out-Null
 
-# Копируем само расширение
-Copy-Item -Path "$sourceExtensionDir\*" -Destination $targetExtensionDir -Recurse -Force
-
-# Копируем необходимые пакеты (packages) и пресеты (presets)
-$extPackagesDir = Join-Path $targetExtensionDir "packages"
-$extPresetsDir = Join-Path $targetExtensionDir "presets"
-
-if (Test-Path $packagesDir) {
-    Copy-Item -Path $packagesDir -Destination $extPackagesDir -Recurse -Force
-}
-if (Test-Path $presetsDir) {
-    Copy-Item -Path $presetsDir -Destination $extPresetsDir -Recurse -Force
+if ($isReleasePackage) {
+    # Копируем всё содержимое архива релиза (CSXS, client, host, packages), исключая установочные скрипты
+    $items = Get-ChildItem -Path $sourceExtensionDir -Exclude "*.bat", "*.ps1", "*.zip", ".git*"
+    foreach ($item in $items) {
+        Copy-Item -Path $item.FullName -Destination $targetExtensionDir -Recurse -Force
+    }
+} else {
+    # Режим разработки: копируем apps\ae-extension и packages
+    Copy-Item -Path "$sourceExtensionDir\*" -Destination $targetExtensionDir -Recurse -Force
+    $packagesDir = Join-Path $projectRoot "packages"
+    if (Test-Path $packagesDir) {
+        $extPackagesDir = Join-Path $targetExtensionDir "packages"
+        Copy-Item -Path $packagesDir -Destination $extPackagesDir -Recurse -Force
+    }
 }
 
 # 4. Проверка и завершение
