@@ -274,12 +274,96 @@ const githubRepoInput = document.getElementById('githubRepoInput');
 const btnCheckUpdatesManual = document.getElementById('btnCheckUpdatesManual');
 const updateStatusText = document.getElementById('updateStatusText');
 const headerAppVersionBadge = document.getElementById('headerAppVersionBadge');
+const headerHostAppBadge = document.getElementById('headerHostAppBadge');
+const autoPlatePproNotice = document.getElementById('autoPlatePproNotice');
+const autoPlateHeaderBadge = document.getElementById('autoPlateHeaderBadge');
 
 // ==========================================
-// 4. Lifecycle & After Effects Connection
+// 4. Lifecycle & Multi-Host Connection (AE & PPro)
 // ==========================================
+
+let hostAppId = 'AEFT';
+let isPPro = false;
+
+function detectHostApp() {
+  try {
+    if (csInterface && csInterface.getHostEnvironment) {
+      const env = csInterface.getHostEnvironment();
+      if (env && env.appId) {
+        hostAppId = String(env.appId).toUpperCase();
+        isPPro = (hostAppId === 'PPRO');
+      }
+    }
+  } catch (e) {}
+}
+
+function applyHostAdaptation(appVersion = '2026') {
+  if (headerHostAppBadge) {
+    headerHostAppBadge.textContent = isPPro ? 'Premiere' : 'AE';
+    headerHostAppBadge.title = isPPro ? `Adobe Premiere Pro ${appVersion}` : `Adobe After Effects ${appVersion}`;
+    headerHostAppBadge.style.background = isPPro ? 'rgba(153, 153, 255, 0.2)' : 'rgba(79, 128, 255, 0.15)';
+    headerHostAppBadge.style.color = isPPro ? '#b8a5fe' : 'var(--accent)';
+  }
+
+  const btnCreatePlate = document.getElementById('btnCreateAutoPlate');
+  const btnUpdatePlate = document.getElementById('btnUpdateAutoPlate');
+  const btnToggleOverlay = document.getElementById('btnToggleSafeZoneOverlay');
+  const overlayText = document.getElementById('overlayBtnText');
+  const runBtnText = document.getElementById('btnRunText');
+  const chkEntire = document.getElementById('chkScanEntireProject');
+  const initialEmpty = document.getElementById('initialEmptyState');
+
+  if (isPPro) {
+    if (autoPlatePproNotice) autoPlatePproNotice.style.display = 'block';
+    if (autoPlateHeaderBadge) autoPlateHeaderBadge.textContent = 'After Effects Only';
+    if (btnCreatePlate) {
+      btnCreatePlate.disabled = true;
+      btnCreatePlate.title = 'Функция создания плашек доступна в After Effects';
+      btnCreatePlate.style.opacity = '0.5';
+    }
+    if (btnUpdatePlate) {
+      btnUpdatePlate.disabled = true;
+      btnUpdatePlate.title = 'Функция обновления плашек доступна в After Effects';
+      btnUpdatePlate.style.opacity = '0.5';
+    }
+    if (overlayText) {
+      overlayText.textContent = 'Safe Margins в Program Monitor';
+    }
+    if (btnToggleOverlay) {
+      btnToggleOverlay.title = 'В Premiere Pro используйте кнопку Safe Margins в окне Program Monitor';
+    }
+    if (runBtnText) {
+      runBtnText.textContent = chkEntire && chkEntire.checked
+        ? 'Запустить проверку всех секвенций'
+        : 'Запустить проверку секвенции';
+    }
+    if (initialEmpty) {
+      initialEmpty.innerHTML = `
+        🎯 <b>Готов к работе в Premiere Pro</b><br><br>
+        Откройте нужную секвенцию с титрами или субтитрами на таймлайне и нажмите <b>«Запустить проверку секвенции»</b>.<br>
+        Broadcast QC автоматически проверит Essential Graphics, дорожки Captions, орфографию, Safe Zone и скорость чтения.
+      `;
+    }
+  } else {
+    if (autoPlatePproNotice) autoPlatePproNotice.style.display = 'none';
+    if (autoPlateHeaderBadge) autoPlateHeaderBadge.textContent = 'AE Dynamic Box';
+    if (btnCreatePlate) {
+      btnCreatePlate.disabled = false;
+      btnCreatePlate.title = '';
+      btnCreatePlate.style.opacity = '1';
+    }
+    if (btnUpdatePlate) {
+      btnUpdatePlate.disabled = false;
+      btnUpdatePlate.title = '';
+      btnUpdatePlate.style.opacity = '1';
+    }
+  }
+}
 
 function init() {
+  detectHostApp();
+  applyHostAdaptation();
+
   if (appVersionBadge) appVersionBadge.textContent = `v${APP_CURRENT_VERSION}`;
   if (headerAppVersionBadge) headerAppVersionBadge.textContent = `v${APP_CURRENT_VERSION}`;
   initTabs();
@@ -290,7 +374,7 @@ function init() {
   initUpdaterUI();
   initSummaryFilterUI();
   initExtendScript();
-  checkAEConnection(true);
+  checkHostConnection(true);
 
   // Default Yandex Speller to ON
   if (chkOnlineSpeller) {
@@ -311,55 +395,69 @@ function initExtendScript() {
       if (res !== 'true') {
         csInterface.loadJSX('host/index.jsx', (loadRes) => {
           console.log('[Broadcast QC] ExtendScript load result:', loadRes);
-          checkAEConnection(true);
+          checkHostConnection(true);
         });
       }
     });
   }
 }
 
-// Check live connection to After Effects
-function checkAEConnection(silent = false) {
+// Check live connection to host application (AE or PPro)
+function checkHostConnection(silent = false) {
   csInterface.evalScript('BroadcastQCHost.getInfo()', (res) => {
     try {
       const data = JSON.parse(res);
       if (data && data.success) {
         statusDot.className = 'status-dot online';
-        
-        let statusStr = `AE ${data.appVersion || '2026'}`;
+
+        if (data.isPPro || data.appName === 'Adobe Premiere Pro') {
+          isPPro = true;
+          hostAppId = 'PPRO';
+        }
+        applyHostAdaptation(data.appVersion || '2026');
+
+        let statusStr = `${isPPro ? 'PPro' : 'AE'} ${data.appVersion || '2026'}`;
+        const unitWord = isPPro ? ['клип/субтитр', 'клипа/субтитра', 'клипов/субтитров'] : ['слой', 'слоя', 'слоев'];
+        const containerType = isPPro ? 'секвенция' : 'композиция';
+
         if (data.hasActiveComp && data.activeCompName) {
-          statusStr = `${data.activeCompName} (${data.activeCompTextLayers} текст. ${declension(data.activeCompTextLayers, ['слой', 'слоя', 'слоев'])})`;
+          statusStr = `${data.activeCompName} (${data.activeCompTextLayers} ${declension(data.activeCompTextLayers, unitWord)})`;
         } else if (data.hasProject) {
           statusDot.className = 'status-dot idle';
-          statusStr = 'Нет активной композиции';
+          statusStr = `Нет активной ${containerType === 'секвенция' ? 'секвенции' : 'композиции'}`;
         }
-        
+
         connectionStatus.textContent = statusStr;
-        connectionStatus.title = `Проект: ${data.projectName || 'Без названия'}\nКомпозиция: ${data.activeCompName || 'Не выбрана'}\nСлоёв: ${data.activeCompLayers || 0} (текстовых: ${data.activeCompTextLayers || 0})`;
+        connectionStatus.title = `Проект: ${data.projectName || 'Без названия'}\n${isPPro ? 'Секвенция' : 'Композиция'}: ${data.activeCompName || 'Не выбрана'}\nЭлементов: ${data.activeCompLayers || 0} (текстовых: ${data.activeCompTextLayers || 0})`;
 
         if (!silent) {
-          showToast(`Подключено к After Effects: ${data.activeCompName ? `композиция «${data.activeCompName}»` : 'нет открытой композиции'}`, 'success');
+          showToast(`Подключено к ${isPPro ? 'Premiere Pro' : 'After Effects'}: ${data.activeCompName ? `${containerType} «${data.activeCompName}»` : `нет открытой ${containerType === 'секвенция' ? 'секвенции' : 'композиции'}`}`, 'success');
         }
       } else {
         setOfflineStatus();
-        if (!silent) showToast('Не удалось получить статус After Effects', 'warning');
+        if (!silent) showToast(`Не удалось получить статус ${isPPro ? 'Premiere Pro' : 'After Effects'}`, 'warning');
       }
     } catch (e) {
       setOfflineStatus();
-      if (!silent) showToast('Ожидание подключения к After Effects...', 'warning');
+      if (!silent) showToast(`Ожидание подключения к ${isPPro ? 'Premiere Pro' : 'After Effects'}...`, 'warning');
     }
   });
 }
 
+// Backward-compatible alias
+function checkAEConnection(silent = false) {
+  checkHostConnection(silent);
+}
+
 function setOfflineStatus() {
   statusDot.className = 'status-dot offline';
-  connectionStatus.textContent = 'AE 2026.2 (Ожидание)';
+  connectionStatus.textContent = `${isPPro ? 'Premiere Pro' : 'AE 2026'} (Ожидание)`;
 }
 
 btnRefreshStatus?.addEventListener('click', () => {
   btnRefreshStatus.style.transform = 'rotate(180deg)';
   setTimeout(() => { btnRefreshStatus.style.transform = ''; }, 300);
-  checkAEConnection(false);
+  checkHostConnection(false);
 });
 
 // ==========================================
@@ -1152,10 +1250,10 @@ function closeUpdateModal() {
 chkScanEntireProject?.addEventListener('change', () => {
   if (chkScanEntireProject.checked) {
     if (chkScanNested) chkScanNested.disabled = true;
-    btnRunText.textContent = 'Запустить проверку всего проекта';
+    btnRunText.textContent = isPPro ? 'Запустить проверку всех секвенций' : 'Запустить проверку всего проекта';
   } else {
     if (chkScanNested) chkScanNested.disabled = false;
-    btnRunText.textContent = 'Запустить проверку композиции';
+    btnRunText.textContent = isPPro ? 'Запустить проверку секвенции' : 'Запустить проверку композиции';
   }
 });
 
@@ -1165,7 +1263,9 @@ btnRunQC.addEventListener('click', async () => {
 
   btnRunQC.disabled = true;
   btnRunIcon.innerHTML = '<span class="spinner"></span>';
-  btnRunText.textContent = isProjectScan ? 'Анализ проекта...' : 'Анализ композиции...';
+  btnRunText.textContent = isProjectScan
+    ? (isPPro ? 'Анализ всех секвенций...' : 'Анализ проекта...')
+    : (isPPro ? 'Анализ секвенции...' : 'Анализ композиции...');
 
   // Apply options to engine
   qcCore.options.checkSpelling = chkSpelling ? chkSpelling.checked : true;
@@ -1176,12 +1276,14 @@ btnRunQC.addEventListener('click', async () => {
   qcCore.spellChecker.checkTypography = chkTypography ? chkTypography.checked : true;
   qcCore.spellChecker.useOnlineSpeller = chkOnlineSpeller ? chkOnlineSpeller.checked : false;
 
-  const defaultBtnText = isProjectScan ? 'Запустить проверку всего проекта' : 'Запустить проверку композиции';
+  const defaultBtnText = isProjectScan
+    ? (isPPro ? 'Запустить проверку всех секвенций' : 'Запустить проверку всего проекта')
+    : (isPPro ? 'Запустить проверку секвенции' : 'Запустить проверку композиции');
 
   const onScanComplete = async (rawResult) => {
     try {
       if (!rawResult || rawResult === 'EvalScript error.') {
-        throw new Error('ExtendScript не ответил. Перезапустите панель или проверьте открытую композицию в AE.');
+        throw new Error(isPPro ? 'ExtendScript не ответил. Перезапустите панель или проверьте открытую секвенцию в Premiere Pro.' : 'ExtendScript не ответил. Перезапустите панель или проверьте открытую композицию в AE.');
       }
 
       const scanData = JSON.parse(rawResult);
@@ -1193,29 +1295,32 @@ btnRunQC.addEventListener('click', async () => {
         hideProgress();
         playChime(false);
 
-        const errMsg = scanData ? scanData.error : 'Не удалось получить данные композиции из After Effects';
+        const errMsg = scanData ? scanData.error : (isPPro ? 'Не удалось получить данные секвенции из Premiere Pro' : 'Не удалось получить данные композиции из After Effects');
         showToast(errMsg, 'warning', 5000);
         return;
       }
 
-      // Check if composition has 0 text layers
+      // Check if composition/sequence has 0 text layers
       if (!scanData.layers || scanData.layers.length === 0) {
         btnRunQC.disabled = false;
         btnRunIcon.textContent = '⚡';
         btnRunText.textContent = defaultBtnText;
-        updateProgress(100, 'В композициях не найдено текстовых слоёв.');
+        updateProgress(100, isPPro ? 'В секвенциях не найдено текстовых титров или субтитров.' : 'В композициях не найдено текстовых слоёв.');
         hideProgress();
         playChime(true);
 
-        const compName = scanData.composition?.name || 'Композиция';
-        showToast(`В «${compName}» не найдено текстовых слоёв`, 'info', 4000);
+        const compName = scanData.composition?.name || (isPPro ? 'Секвенция' : 'Композиция');
+        showToast(`В «${compName}» не найдено текстовых элементов`, 'info', 4000);
 
         summarySection.style.display = 'none';
         btnExportReport.style.display = 'none';
+        const emptyInstruction = isPPro
+          ? `В <b>«${escapeHTML(compName)}»</b> (всего элементов: ${scanData.totalCompLayers || 0}) не найдено ни одного текстового титра (Essential Graphics) или субтитра.<br><br>Добавьте титр (инструмент <b>Текст / T</b>) или дорожку субтитров на таймлайн Premiere Pro и повторите анализ.`
+          : `В <b>«${escapeHTML(compName)}»</b> (всего слоёв: ${scanData.totalCompLayers || 0}) не найдено ни одного текстового слоя.<br><br>Добавьте текстовый слой на таймлайн (<b>Ctrl+T</b> / <b>Cmd+T</b>) или откройте композицию с титрами и повторите анализ.`;
+
         issuesContainer.innerHTML = `
           <div class="empty-state">
-            ℹ️ В <b>«${escapeHTML(compName)}»</b> (всего слоёв: ${scanData.totalCompLayers || 0}) не найдено ни одного текстового слоя.<br><br>
-            Добавьте текстовый слой на таймлайн (<b>Ctrl+T</b> / <b>Cmd+T</b>) или откройте композицию с титрами и повторите анализ.
+            ℹ️ ${emptyInstruction}
           </div>
         `;
         return;
