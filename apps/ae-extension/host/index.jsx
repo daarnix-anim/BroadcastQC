@@ -37,9 +37,22 @@ var JSONHelper = {
         }
         return (isArr ? "[" : "{") + res.join(",") + (isArr ? "]" : "}");
     }
-};
+// Multi-host environment compatibility fallbacks for Premiere Pro / non-AE hosts
+if (typeof writeLn === "undefined") {
+    var writeLn = function(msg) {
+        if (typeof $ !== "undefined" && $.writeln) {
+            $.writeln(msg);
+        }
+    };
+}
+if (typeof CompItem === "undefined") { var CompItem = function() {}; }
+if (typeof AVLayer === "undefined") { var AVLayer = function() {}; }
+if (typeof ShapeLayer === "undefined") { var ShapeLayer = function() {}; }
+if (typeof TextLayer === "undefined") { var TextLayer = function() {}; }
+if (typeof FolderItem === "undefined") { var FolderItem = function() {}; }
+if (typeof FootageItem === "undefined") { var FootageItem = function() {}; }
 
-var BroadcastQCHost = {
+var AEHostAdapter = {
     /**
      * Возвращает подробную информацию о версии After Effects, проекте и активной композиции
      */
@@ -1149,3 +1162,582 @@ var BroadcastQCHost = {
         }
     }
 };
+
+/**
+ * Premiere Pro Host Adapter (ES3)
+ * Handles Adobe Premiere Pro active sequence, video tracks (Essential Graphics / MOGRTs),
+ * and caption tracks (subtitles).
+ */
+var PProHostAdapter = {
+    TICKS_PER_SECOND: 254016000000,
+
+    _ticksToSeconds: function(ticks) {
+        if (!ticks) return 0;
+        if (typeof ticks === "object" && ticks.seconds !== undefined) {
+            return Number(ticks.seconds);
+        }
+        var num = Number(ticks);
+        if (isNaN(num)) return 0;
+        return num > 1000000 ? (num / 254016000000) : num;
+    },
+
+    _secondsToTicks: function(sec) {
+        return Math.round(Number(sec) * 254016000000);
+    },
+
+    getInfo: function() {
+        try {
+            var proj = app.project;
+            var hasProj = proj !== null && typeof proj !== "undefined";
+            var activeSeq = (hasProj && proj.activeSequence) ? proj.activeSequence : null;
+
+            var textItemsCount = 0;
+            var seqLayersCount = 0;
+
+            if (activeSeq) {
+                // Count video track items
+                if (activeSeq.videoTracks) {
+                    for (var vt = 0; vt < activeSeq.videoTracks.numTracks; vt++) {
+                        var track = activeSeq.videoTracks[vt];
+                        if (track && track.clips) {
+                            seqLayersCount += track.clips.numItems;
+                            for (var c = 0; c < track.clips.numItems; c++) {
+                                var clip = track.clips[c];
+                                if (this._extractClipText(clip)) {
+                                    textItemsCount++;
+                                }
+                            }
+                        }
+                    }
+                }
+                // Count caption track items
+                if (activeSeq.captionTracks) {
+                    for (var ct = 0; ct < activeSeq.captionTracks.numTracks; ct++) {
+                        var capTrack = activeSeq.captionTracks[ct];
+                        if (capTrack && capTrack.clips) {
+                            seqLayersCount += capTrack.clips.numItems;
+                            textItemsCount += capTrack.clips.numItems;
+                        }
+                    }
+                }
+            }
+
+            var pName = "Новый проект Premiere Pro";
+            var pPath = "";
+            try {
+                if (hasProj) {
+                    pName = proj.name || "Проект Premiere Pro";
+                    pPath = proj.path || "";
+                }
+            } catch (e) {}
+
+            var seqDur = 0;
+            var seqName = "";
+            if (activeSeq) {
+                seqName = activeSeq.name || "Активная секвенция";
+                try {
+                    seqDur = this._ticksToSeconds(activeSeq.end);
+                } catch (e) {}
+            }
+
+            return JSONHelper.stringify({
+                success: true,
+                isPPro: true,
+                appVersion: app.version || "2026",
+                appName: "Adobe Premiere Pro",
+                hasProject: hasProj,
+                projectName: pName,
+                projectPath: pPath,
+                hasActiveComp: activeSeq !== null,
+                activeCompName: seqName,
+                activeCompDuration: seqDur,
+                activeCompLayers: seqLayersCount,
+                activeCompTextLayers: textItemsCount
+            });
+        } catch (e) {
+            return JSONHelper.stringify({
+                success: false,
+                isPPro: true,
+                appVersion: app.version || "2026",
+                appName: "Adobe Premiere Pro",
+                error: e.toString()
+            });
+        }
+    },
+
+    _extractClipText: function(clip) {
+        if (!clip) return "";
+        try {
+            // Check components (Graphic, Text, Mogrt)
+            if (clip.components) {
+                for (var i = 0; i < clip.components.numItems; i++) {
+                    var comp = clip.components[i];
+                    if (comp && comp.properties) {
+                        for (var p = 0; p < comp.properties.numItems; p++) {
+                            var prop = comp.properties[p];
+                            var pName = (prop.displayName || prop.name || "").toLowerCase();
+                            if (pName.indexOf("source text") !== -1 || pName.indexOf("text") !== -1 || pName.indexOf("текст") !== -1) {
+                                var val = prop.getValue();
+                                if (typeof val === "string" && val.length > 0) {
+                                    return val;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Check clip name heuristics for graphic titles
+            if (clip.name && (clip.name.indexOf(".mogrt") !== -1 || clip.name.indexOf("Титр") !== -1 || clip.name.indexOf("Title") !== -1 || clip.name.indexOf("Graphic") !== -1)) {
+                return clip.name;
+            }
+        } catch (e) {}
+        return "";
+    },
+
+    scanActiveSequence: function() {
+        try {
+            if (!app.project) {
+                return JSONHelper.stringify({
+                    success: false,
+                    code: "NO_PROJECT",
+                    error: "В Premiere Pro не открыт проект. Откройте проект .prproj."
+                });
+            }
+            var seq = app.project.activeSequence;
+            if (!seq) {
+                return JSONHelper.stringify({
+                    success: false,
+                    code: "NO_COMPOSITION",
+                    error: "Не выбрана активная секвенция на таймлайне Premiere Pro. Откройте секвенцию."
+                });
+            }
+
+            var frameWidth = seq.frameSizeHorizontal || 1920;
+            var frameHeight = seq.frameSizeVertical || 1080;
+            var duration = this._ticksToSeconds(seq.end);
+            var fps = 25;
+            try {
+                var settings = seq.getSettings();
+                if (settings && settings.videoFrameRate) {
+                    fps = Math.round(1 / this._ticksToSeconds(settings.videoFrameRate));
+                    if (!fps || isNaN(fps) || fps <= 0) fps = 25;
+                }
+            } catch (e) {}
+
+            var allLayers = [];
+            var totalItems = 0;
+
+            // 1. Scan Video Tracks for Essential Graphics / Titles / Mogrts
+            if (seq.videoTracks) {
+                for (var vt = 0; vt < seq.videoTracks.numTracks; vt++) {
+                    var track = seq.videoTracks[vt];
+                    if (!track || !track.clips) continue;
+                    for (var c = 0; c < track.clips.numItems; c++) {
+                        totalItems++;
+                        var clip = track.clips[c];
+                        var textContent = this._extractClipText(clip);
+                        if (!textContent) continue;
+
+                        var inSec = this._ticksToSeconds(clip.inPoint);
+                        var outSec = this._ticksToSeconds(clip.outPoint);
+                        var durSec = Math.max(0.1, outSec - inSec);
+
+                        var bounds = {
+                            left: Math.round(frameWidth * 0.1),
+                            top: Math.round(frameHeight * 0.75),
+                            right: Math.round(frameWidth * 0.9),
+                            bottom: Math.round(frameHeight * 0.9),
+                            width: Math.round(frameWidth * 0.8),
+                            height: Math.round(frameHeight * 0.15)
+                        };
+
+                        allLayers.push({
+                            id: "vtrack_" + (vt + 1) + "_clip_" + (c + 1),
+                            index: (vt + 1) * 100 + (c + 1),
+                            name: clip.name || ("Титр V" + (vt + 1)),
+                            compId: seq.id || 1,
+                            compName: seq.name || "Секвенция",
+                            parentCompName: "",
+                            isNested: false,
+                            enabled: !clip.disabled,
+                            locked: !!track.isLocked,
+                            shy: false,
+                            guideLayer: false,
+                            inPoint: inSec,
+                            outPoint: outSec,
+                            startTime: inSec,
+                            threeDLayer: false,
+                            motionBlur: false,
+                            adjustmentLayer: false,
+                            nullLayer: false,
+                            fontName: "Premiere Default",
+                            fontSize: 48,
+                            fontColor: [1, 1, 1],
+                            fontMissing: false,
+                            isFauxBold: false,
+                            isFauxItalic: false,
+                            tracking: 0,
+                            justification: "CENTER",
+                            text: textContent,
+                            type: "graphic",
+                            bounds: bounds,
+                            samples: [
+                                {
+                                    time: inSec,
+                                    position: [frameWidth / 2, frameHeight * 0.82],
+                                    scale: [100, 100],
+                                    opacity: 100,
+                                    rotation: 0,
+                                    compAABB: bounds,
+                                    text: textContent
+                                },
+                                {
+                                    time: (inSec + outSec) / 2,
+                                    position: [frameWidth / 2, frameHeight * 0.82],
+                                    scale: [100, 100],
+                                    opacity: 100,
+                                    rotation: 0,
+                                    compAABB: bounds,
+                                    text: textContent
+                                }
+                            ]
+                        });
+                    }
+                }
+            }
+
+            // 2. Scan Caption Tracks (Subtitles)
+            if (seq.captionTracks) {
+                for (var ct = 0; ct < seq.captionTracks.numTracks; ct++) {
+                    var capTrack = seq.captionTracks[ct];
+                    if (!capTrack || !capTrack.clips) continue;
+                    for (var cc = 0; cc < capTrack.clips.numItems; cc++) {
+                        totalItems++;
+                        var capItem = capTrack.clips[cc];
+                        var capText = "";
+                        try {
+                            capText = (capItem.caption || capItem.name || "").trim();
+                        } catch (e) {}
+                        if (!capText) continue;
+
+                        var cInSec = this._ticksToSeconds(capItem.inPoint);
+                        var cOutSec = this._ticksToSeconds(capItem.outPoint);
+                        var cDurSec = Math.max(0.1, cOutSec - cInSec);
+
+                        var capBounds = {
+                            left: Math.round(frameWidth * 0.1),
+                            top: Math.round(frameHeight * 0.85),
+                            right: Math.round(frameWidth * 0.9),
+                            bottom: Math.round(frameHeight * 0.95),
+                            width: Math.round(frameWidth * 0.8),
+                            height: Math.round(frameHeight * 0.1)
+                        };
+
+                        allLayers.push({
+                            id: "caption_track_" + (ct + 1) + "_item_" + (cc + 1),
+                            index: (ct + 1) * 1000 + (cc + 1),
+                            name: "Субтитр #" + (cc + 1) + " [" + cInSec.toFixed(1) + "с - " + cOutSec.toFixed(1) + "с]",
+                            compId: seq.id || 1,
+                            compName: seq.name || "Секвенция",
+                            parentCompName: "Дорожка субтитров " + (ct + 1),
+                            isNested: false,
+                            enabled: true,
+                            locked: false,
+                            shy: false,
+                            guideLayer: false,
+                            inPoint: cInSec,
+                            outPoint: cOutSec,
+                            startTime: cInSec,
+                            threeDLayer: false,
+                            motionBlur: false,
+                            adjustmentLayer: false,
+                            nullLayer: false,
+                            fontName: "Caption Font",
+                            fontSize: 42,
+                            fontColor: [1, 1, 1],
+                            fontMissing: false,
+                            isFauxBold: false,
+                            isFauxItalic: false,
+                            tracking: 0,
+                            justification: "CENTER",
+                            text: capText,
+                            type: "caption",
+                            isCaption: true,
+                            bounds: capBounds,
+                            samples: [
+                                {
+                                    time: cInSec,
+                                    position: [frameWidth / 2, frameHeight * 0.9],
+                                    scale: [100, 100],
+                                    opacity: 100,
+                                    rotation: 0,
+                                    compAABB: capBounds,
+                                    text: capText
+                                },
+                                {
+                                    time: (cInSec + cOutSec) / 2,
+                                    position: [frameWidth / 2, frameHeight * 0.9],
+                                    scale: [100, 100],
+                                    opacity: 100,
+                                    rotation: 0,
+                                    compAABB: capBounds,
+                                    text: capText
+                                }
+                            ]
+                        });
+                    }
+                }
+            }
+
+            return JSONHelper.stringify({
+                success: true,
+                composition: {
+                    id: seq.id || 1,
+                    name: seq.name || "Секвенция",
+                    width: frameWidth,
+                    height: frameHeight,
+                    duration: duration,
+                    frameRate: fps,
+                    workAreaStart: 0,
+                    workAreaDuration: duration
+                },
+                layers: allLayers,
+                totalCompLayers: totalItems,
+                textLayersCount: allLayers.length,
+                isNestedScan: false
+            });
+        } catch (e) {
+            return JSONHelper.stringify({
+                success: false,
+                code: "SCAN_EXCEPTION",
+                error: "Ошибка сканирования секвенции Premiere Pro: " + e.toString()
+            });
+        }
+    },
+
+    scanEntireProject: function() {
+        try {
+            if (!app.project) {
+                return JSONHelper.stringify({
+                    success: false,
+                    code: "NO_PROJECT",
+                    error: "В Premiere Pro не открыт проект .prproj."
+                });
+            }
+            var seqs = app.project.sequences;
+            if (!seqs || seqs.numSequences === 0) {
+                return this.scanActiveSequence();
+            }
+
+            var allLayers = [];
+            var totalSeqs = seqs.numSequences;
+            var curActive = app.project.activeSequence;
+
+            for (var s = 0; s < seqs.numSequences; s++) {
+                var sq = seqs[s];
+                if (!sq) continue;
+                try {
+                    app.project.openSequence(sq.sequenceID);
+                } catch (oe) {}
+                var scanRes = JSONHelper.parse(this.scanActiveSequence());
+                if (scanRes && scanRes.success && scanRes.layers) {
+                    for (var l = 0; l < scanRes.layers.length; l++) {
+                        allLayers.push(scanRes.layers[l]);
+                    }
+                }
+            }
+            if (curActive) {
+                try { app.project.openSequence(curActive.sequenceID); } catch (e) {}
+            }
+
+            return JSONHelper.stringify({
+                success: true,
+                composition: {
+                    id: 0,
+                    name: "Все секвенции: " + (app.project.name || "Проект Premiere"),
+                    width: 1920,
+                    height: 1080,
+                    duration: 0,
+                    frameRate: 25
+                },
+                layers: allLayers,
+                totalCompsCount: totalSeqs,
+                textLayersCount: allLayers.length,
+                isProjectScan: true
+            });
+        } catch (e) {
+            return JSONHelper.stringify({
+                success: false,
+                error: "Ошибка анализа проекта Premiere Pro: " + e.toString()
+            });
+        }
+    },
+
+    navigateToLayer: function(layerIndex, timeInSeconds, compId) {
+        try {
+            if (!app.project || !app.project.activeSequence) {
+                return JSONHelper.stringify({ success: false, error: "Нет активной секвенции" });
+            }
+            var seq = app.project.activeSequence;
+            if (timeInSeconds !== undefined && timeInSeconds !== null && !isNaN(timeInSeconds)) {
+                var ticks = this._secondsToTicks(timeInSeconds);
+                seq.setPlayerPosition(String(ticks));
+            }
+            return JSONHelper.stringify({ success: true, compId: seq.id || 1, compName: seq.name });
+        } catch (e) {
+            return JSONHelper.stringify({ success: false, error: e.toString() });
+        }
+    },
+
+    applyTextFix: function(layerIndex, oldText, newText, compId) {
+        try {
+            if (!app.project || !app.project.activeSequence) {
+                return JSONHelper.stringify({ success: false, error: "Нет активной секвенции" });
+            }
+            var seq = app.project.activeSequence;
+            var targetIdx = parseInt(layerIndex, 10);
+            var updated = false;
+
+            // Search in Video Tracks
+            if (seq.videoTracks) {
+                for (var vt = 0; vt < seq.videoTracks.numTracks; vt++) {
+                    var track = seq.videoTracks[vt];
+                    if (!track || !track.clips) continue;
+                    for (var c = 0; c < track.clips.numItems; c++) {
+                        var clipIdx = (vt + 1) * 100 + (c + 1);
+                        if (clipIdx === targetIdx) {
+                            var clip = track.clips[c];
+                            if (clip.components) {
+                                for (var i = 0; i < clip.components.numItems; i++) {
+                                    var comp = clip.components[i];
+                                    if (comp.properties) {
+                                        for (var p = 0; p < comp.properties.numItems; p++) {
+                                            var prop = comp.properties[p];
+                                            var pName = (prop.displayName || prop.name || "").toLowerCase();
+                                            if (pName.indexOf("source text") !== -1 || pName.indexOf("text") !== -1) {
+                                                var curVal = prop.getValue();
+                                                if (typeof curVal === "string" && curVal.indexOf(oldText) !== -1) {
+                                                    var newVal = curVal.split(oldText).join(newText);
+                                                    prop.setValue(newVal);
+                                                    updated = true;
+                                                    return JSONHelper.stringify({
+                                                        success: true,
+                                                        layerIndex: targetIdx,
+                                                        compName: seq.name,
+                                                        updatedText: newVal
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Search in Caption Tracks
+            if (seq.captionTracks) {
+                for (var ct = 0; ct < seq.captionTracks.numTracks; ct++) {
+                    var capTrack = seq.captionTracks[ct];
+                    if (!capTrack || !capTrack.clips) continue;
+                    for (var cc = 0; cc < capTrack.clips.numItems; cc++) {
+                        var capIdx = (ct + 1) * 1000 + (cc + 1);
+                        if (capIdx === targetIdx) {
+                            var capItem = capTrack.clips[cc];
+                            var curCap = capItem.caption || capItem.name || "";
+                            if (curCap.indexOf(oldText) !== -1) {
+                                var newCap = curCap.split(oldText).join(newText);
+                                try { capItem.caption = newCap; } catch (e) {}
+                                try { capItem.name = newCap; } catch (e) {}
+                                updated = true;
+                                return JSONHelper.stringify({
+                                    success: true,
+                                    layerIndex: targetIdx,
+                                    compName: seq.name,
+                                    updatedText: newCap
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!updated) {
+                return JSONHelper.stringify({
+                    success: false,
+                    error: "Фрагмент «" + oldText + "» не найден в клипе или субтитре #" + targetIdx
+                });
+            }
+        } catch (e) {
+            return JSONHelper.stringify({ success: false, error: e.toString() });
+        }
+    },
+
+    toggleSafeZoneOverlay: function(marginPercentJson, forceState) {
+        return JSONHelper.stringify({
+            success: true,
+            active: false,
+            message: "В Premiere Pro используйте кнопку «Safe Margins» в окне Program Monitor для отображения безопасных границ"
+        });
+    },
+
+    getSafeZoneOverlayStatus: function() {
+        return JSONHelper.stringify({ success: true, active: false });
+    }
+};
+
+/**
+ * Unified BroadcastQCHost Dispatcher
+ * Automatically detects whether running in Premiere Pro or After Effects
+ * and routes API calls to the corresponding Host Adapter.
+ */
+var BroadcastQCHost = {
+    isPPro: function() {
+        return (typeof BridgeTalk !== "undefined" && BridgeTalk.appName === "premierepro");
+    },
+    getInfo: function() {
+        return this.isPPro() ? PProHostAdapter.getInfo() : AEHostAdapter.getInfo();
+    },
+    scanActiveComposition: function(sampleStepFrames, scanNested) {
+        return this.isPPro() ? PProHostAdapter.scanActiveSequence() : AEHostAdapter.scanActiveComposition(sampleStepFrames, scanNested);
+    },
+    scanEntireProject: function(sampleStepFrames) {
+        return this.isPPro() ? PProHostAdapter.scanEntireProject() : AEHostAdapter.scanEntireProject(sampleStepFrames);
+    },
+    applyTextFix: function(layerIndex, oldText, newText, compId) {
+        return this.isPPro() ? PProHostAdapter.applyTextFix(layerIndex, oldText, newText, compId) : AEHostAdapter.applyTextFix(layerIndex, oldText, newText, compId);
+    },
+    navigateToLayer: function(layerIndex, timeInSeconds, compId) {
+        return this.isPPro() ? PProHostAdapter.navigateToLayer(layerIndex, timeInSeconds, compId) : AEHostAdapter.navigateToLayer(layerIndex, timeInSeconds, compId);
+    },
+    toggleSafeZoneOverlay: function(marginPercentJson, forceState) {
+        return this.isPPro() ? PProHostAdapter.toggleSafeZoneOverlay(marginPercentJson, forceState) : AEHostAdapter.toggleSafeZoneOverlay(marginPercentJson, forceState);
+    },
+    getSafeZoneOverlayStatus: function() {
+        return this.isPPro() ? PProHostAdapter.getSafeZoneOverlayStatus() : AEHostAdapter.getSafeZoneOverlayStatus();
+    },
+    getAutoPlatePresets: function() {
+        return AEHostAdapter.getAutoPlatePresets();
+    },
+    createAutoPlate: function(configJson) {
+        if (this.isPPro()) {
+            return JSONHelper.stringify({
+                success: false,
+                error: "Функция Auto-Plate использует движок выражений After Effects. Доступна в After Effects."
+            });
+        }
+        return AEHostAdapter.createAutoPlate(configJson);
+    },
+    updateAutoPlate: function(configJson) {
+        if (this.isPPro()) {
+            return JSONHelper.stringify({
+                success: false,
+                error: "Функция Auto-Plate использует движок выражений After Effects. Доступна в After Effects."
+            });
+        }
+        return AEHostAdapter.updateAutoPlate(configJson);
+    }
+};
+
