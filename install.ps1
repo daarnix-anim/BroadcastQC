@@ -1,10 +1,10 @@
-# Broadcast QC - PowerShell Installer for Adobe After Effects 2026.2+
+# Broadcast QC - PowerShell Installer for Adobe After Effects & Premiere Pro
 # Extensions folder: %APPDATA%\Adobe\CEP\extensions\com.broadcast.qc
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "=====================================================" -ForegroundColor Cyan
-Write-Host "   Broadcast QC - Установка расширения After Effects" -ForegroundColor Cyan
+Write-Host "   Broadcast QC - Установка расширения (AE & Premiere)" -ForegroundColor Cyan
 Write-Host "=====================================================" -ForegroundColor Cyan
 
 # 1. Включение PlayerDebugMode в реестре для всех версий CSXS
@@ -77,9 +77,9 @@ Write-Host "`n[3/3] Проверка целостности установки..
 $manifestCheck = Join-Path $targetExtensionDir "CSXS\manifest.xml"
 if (Test-Path $manifestCheck) {
     Write-Host "`n[УСПЕХ] Расширение 'Broadcast QC' успешно установлено!" -ForegroundColor Green
-    Write-Host "Чтобы открыть в After Effects:" -ForegroundColor White
-    Write-Host "  1. Запустите или перезапустите Adobe After Effects 2026." -ForegroundColor White
-    Write-Host "  2. Перейдите в меню: Окно -> Расширения -> Broadcast QC (Window -> Extensions -> Broadcast QC)." -ForegroundColor Cyan
+    Write-Host "Как открыть расширение:" -ForegroundColor White
+    Write-Host "  • В Adobe After Effects:   Окно -> Расширения -> Broadcast QC" -ForegroundColor Cyan
+    Write-Host "  • В Adobe Premiere Pro:    Окно -> Расширения -> Broadcast QC" -ForegroundColor Cyan
 } else {
     Write-Host "`n[ОШИБКА] Файл манифеста не найден после копирования." -ForegroundColor Red
 }
