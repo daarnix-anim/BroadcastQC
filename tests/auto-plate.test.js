@@ -88,4 +88,17 @@ describe('Auto-Plate Module Tests', () => {
     assert.strictEqual(ORIGIN_POINTS.CENTER.id, 4);
     assert.strictEqual(ORIGIN_POINTS.BOTTOM_RIGHT.id, 8);
   });
+
+  it('separates plate and target elements correctly for update mode', () => {
+    const mixed = ['Title Layer', '[Plate] Title Layer', 'Subtitle Layer', 'Icon Layer', 'Title Layer'];
+    const res = AutoPlateEngine.separatePlateAndTargets(mixed);
+
+    assert.strictEqual(res.plateName, '[Plate] Title Layer');
+    assert.deepStrictEqual(res.targetNames, ['Title Layer', 'Subtitle Layer', 'Icon Layer']);
+
+    const onlyTargets = ['Layer 1', 'Layer 2'];
+    const res2 = AutoPlateEngine.separatePlateAndTargets(onlyTargets);
+    assert.strictEqual(res2.plateName, null);
+    assert.deepStrictEqual(res2.targetNames, ['Layer 1', 'Layer 2']);
+  });
 });

@@ -656,6 +656,130 @@ var BroadcastQCHost = {
     },
 
     /**
+     * Вспомогательный метод: формирует выражения Size и Position,
+     * устойчивые к редактированию текста, переименованию слоев и перемещению в таймлайне.
+     */
+    _getPlateExpressions: function(targetLayerNames, relOffsets) {
+        if (!relOffsets || relOffsets.length === 0) {
+            relOffsets = [-1];
+        }
+        var jsonTargets = JSONHelper.stringify(targetLayerNames);
+        var jsonOffsets = JSONHelper.stringify(relOffsets);
+
+        var sizeExpr = 
+            'var padL = effect("Padding Left")("Slider");\n' +
+            'var padR = effect("Padding Right")("Slider");\n' +
+            'var padT = effect("Padding Top")("Slider");\n' +
+            'var padB = effect("Padding Bottom")("Slider");\n' +
+            'var relOffsets = ' + jsonOffsets + ';\n' +
+            'var fallbackNames = ' + jsonTargets + ';\n' +
+            'var targets = [];\n' +
+            'for (var oi = 0; oi < relOffsets.length; oi++) {\n' +
+            '  try {\n' +
+            '    var ti = index + relOffsets[oi];\n' +
+            '    if (ti >= 1 && ti <= thisComp.numLayers && ti !== index) {\n' +
+            '      var rl = thisComp.layer(ti);\n' +
+            '      if (rl && rl.active) targets.push(rl);\n' +
+            '    }\n' +
+            '  } catch(e) {}\n' +
+            '}\n' +
+            'if (targets.length === 0) {\n' +
+            '  for (var ni = 0; ni < fallbackNames.length; ni++) {\n' +
+            '    try {\n' +
+            '      var fl = thisComp.layer(fallbackNames[ni]);\n' +
+            '      if (fl && fl.index !== index && fl.active) targets.push(fl);\n' +
+            '    } catch(e) {}\n' +
+            '  }\n' +
+            '}\n' +
+            'if (targets.length === 0 && index > 1) {\n' +
+            '  try { var al = thisComp.layer(index - 1); if (al && al.active) targets.push(al); } catch(e) {}\n' +
+            '}\n' +
+            'var minX = 999999, maxX = -999999, minY = 999999, maxY = -999999, valid = 0;\n' +
+            'for (var i = 0; i < targets.length; i++) {\n' +
+            '  try {\n' +
+            '    var l = targets[i];\n' +
+            '    if (l && l.active) {\n' +
+            '      var r = l.sourceRectAtTime(time, false);\n' +
+            '      if (r.width > 0 || r.height > 0) {\n' +
+            '        var p1 = l.toComp([r.left, r.top]);\n' +
+            '        var p2 = l.toComp([r.left + r.width, r.top]);\n' +
+            '        var p3 = l.toComp([r.left, r.top + r.height]);\n' +
+            '        var p4 = l.toComp([r.left + r.width, r.top + r.height]);\n' +
+            '        minX = Math.min(minX, p1[0], p2[0], p3[0], p4[0]);\n' +
+            '        maxX = Math.max(maxX, p1[0], p2[0], p3[0], p4[0]);\n' +
+            '        minY = Math.min(minY, p1[1], p2[1], p3[1], p4[1]);\n' +
+            '        maxY = Math.max(maxY, p1[1], p2[1], p3[1], p4[1]);\n' +
+            '        valid++;\n' +
+            '      }\n' +
+            '    }\n' +
+            '  } catch(e) {}\n' +
+            '}\n' +
+            'if (valid === 0) [200, 80];\n' +
+            'else {\n' +
+            '  var w = (maxX - minX) + padL + padR;\n' +
+            '  var h = (maxY - minY) + padT + padB;\n' +
+            '  [Math.max(10, w), Math.max(10, h)];\n' +
+            '}';
+
+        var posExpr = 
+            'var padL = effect("Padding Left")("Slider");\n' +
+            'var padR = effect("Padding Right")("Slider");\n' +
+            'var padT = effect("Padding Top")("Slider");\n' +
+            'var padB = effect("Padding Bottom")("Slider");\n' +
+            'var relOffsets = ' + jsonOffsets + ';\n' +
+            'var fallbackNames = ' + jsonTargets + ';\n' +
+            'var targets = [];\n' +
+            'for (var oi = 0; oi < relOffsets.length; oi++) {\n' +
+            '  try {\n' +
+            '    var ti = index + relOffsets[oi];\n' +
+            '    if (ti >= 1 && ti <= thisComp.numLayers && ti !== index) {\n' +
+            '      var rl = thisComp.layer(ti);\n' +
+            '      if (rl && rl.active) targets.push(rl);\n' +
+            '    }\n' +
+            '  } catch(e) {}\n' +
+            '}\n' +
+            'if (targets.length === 0) {\n' +
+            '  for (var ni = 0; ni < fallbackNames.length; ni++) {\n' +
+            '    try {\n' +
+            '      var fl = thisComp.layer(fallbackNames[ni]);\n' +
+            '      if (fl && fl.index !== index && fl.active) targets.push(fl);\n' +
+            '    } catch(e) {}\n' +
+            '  }\n' +
+            '}\n' +
+            'if (targets.length === 0 && index > 1) {\n' +
+            '  try { var al = thisComp.layer(index - 1); if (al && al.active) targets.push(al); } catch(e) {}\n' +
+            '}\n' +
+            'var minX = 999999, maxX = -999999, minY = 999999, maxY = -999999, valid = 0;\n' +
+            'for (var i = 0; i < targets.length; i++) {\n' +
+            '  try {\n' +
+            '    var l = targets[i];\n' +
+            '    if (l && l.active) {\n' +
+            '      var r = l.sourceRectAtTime(time, false);\n' +
+            '      if (r.width > 0 || r.height > 0) {\n' +
+            '        var p1 = l.toComp([r.left, r.top]);\n' +
+            '        var p2 = l.toComp([r.left + r.width, r.top]);\n' +
+            '        var p3 = l.toComp([r.left, r.top + r.height]);\n' +
+            '        var p4 = l.toComp([r.left + r.width, r.top + r.height]);\n' +
+            '        minX = Math.min(minX, p1[0], p2[0], p3[0], p4[0]);\n' +
+            '        maxX = Math.max(maxX, p1[0], p2[0], p3[0], p4[0]);\n' +
+            '        minY = Math.min(minY, p1[1], p2[1], p3[1], p4[1]);\n' +
+            '        maxY = Math.max(maxY, p1[1], p2[1], p3[1], p4[1]);\n' +
+            '        valid++;\n' +
+            '      }\n' +
+            '    }\n' +
+            '  } catch(e) {}\n' +
+            '}\n' +
+            'if (valid === 0) value;\n' +
+            'else {\n' +
+            '  var cx = (minX + maxX)/2 + (padR - padL)/2;\n' +
+            '  var cy = (minY + maxY)/2 + (padB - padT)/2;\n' +
+            '  hasParent ? fromComp([cx, cy]) : [cx, cy];\n' +
+            '}';
+
+        return { sizeExpression: sizeExpr, positionExpression: posExpr };
+    },
+
+    /**
      * Создает адаптивную плашку под выделенные слои (текст, иконки, объекты)
      * с динамическим охватом, независимыми отступами (Paddings) и скруглением углов.
      */
@@ -687,23 +811,24 @@ var BroadcastQCHost = {
 
             app.beginUndoGroup("Создать адаптивную плашку [Broadcast QC]");
 
-            // 1. Собираем массив имен выделенных слоев и находим самый нижний индекс слоя
+            // 1. Собираем массив имен выделенных слоев и находим самый нижний слой
             var targetLayerNames = [];
-            var maxLayerIndex = -1;
+            var lowestTarget = selLayers[0];
             for (var i = 0; i < selLayers.length; i++) {
                 var sLayer = selLayers[i];
                 targetLayerNames.push(sLayer.name);
-                if (sLayer.index > maxLayerIndex) {
-                    maxLayerIndex = sLayer.index;
+                if (sLayer.index > lowestTarget.index) {
+                    lowestTarget = sLayer;
                 }
             }
 
             // 2. Создаем шейповый слой плашки
             var plateLayer = comp.layers.addShape();
             plateLayer.name = "[Plate] " + (selLayers[0].name.replace(/^\[.*?\]\s*/, ''));
+
             // Перемещаем слой плашки ровно под самый нижний выделенный слой
-            if (maxLayerIndex > 0 && maxLayerIndex <= comp.numLayers) {
-                plateLayer.moveAfter(comp.layer(maxLayerIndex));
+            if (lowestTarget) {
+                plateLayer.moveAfter(lowestTarget);
             }
 
             // Сбрасываем Anchor Point в [0,0], Scale в [100,100]
@@ -732,6 +857,16 @@ var BroadcastQCHost = {
             addSlider("Padding Bottom", padB);
             addSlider("Roundness", roundness);
 
+            // Вычисляем относительные смещения каждого целевого слоя относительно слоя плашки
+            var relOffsets = [];
+            for (var ti = 0; ti < selLayers.length; ti++) {
+                var offset = selLayers[ti].index - plateLayer.index;
+                relOffsets.push(offset);
+            }
+            if (relOffsets.length === 0) {
+                relOffsets = [-1];
+            }
+
             // 4. Наполняем шейп содержимым (Rectangle + Fill + Stroke)
             var contents = plateLayer.property("ADBE Root Vectors Group");
             var shapeGroup = contents.addProperty("ADBE Vector Group");
@@ -742,40 +877,10 @@ var BroadcastQCHost = {
             rect.name = "Rectangle Path 1";
             rect.property("Position").setValue([0, 0]);
 
+            var exprs = this._getPlateExpressions(targetLayerNames, relOffsets);
+
             // Выражение размера для Rectangle Path
-            var targetLayersJson = JSONHelper.stringify(targetLayerNames);
-            rect.property("Size").expression = 
-                'var targetLayers = ' + targetLayersJson + ';\n' +
-                'var padL = effect("Padding Left")("Slider");\n' +
-                'var padR = effect("Padding Right")("Slider");\n' +
-                'var padT = effect("Padding Top")("Slider");\n' +
-                'var padB = effect("Padding Bottom")("Slider");\n' +
-                'var minX = 999999, maxX = -999999, minY = 999999, maxY = -999999, valid = 0;\n' +
-                'for (var i = 0; i < targetLayers.length; i++) {\n' +
-                '  try {\n' +
-                '    var l = thisComp.layer(targetLayers[i]);\n' +
-                '    if (l && l.active) {\n' +
-                '      var r = l.sourceRectAtTime(time, false);\n' +
-                '      if (r.width > 0 || r.height > 0) {\n' +
-                '        var p1 = l.toComp([r.left, r.top]);\n' +
-                '        var p2 = l.toComp([r.left + r.width, r.top]);\n' +
-                '        var p3 = l.toComp([r.left, r.top + r.height]);\n' +
-                '        var p4 = l.toComp([r.left + r.width, r.top + r.height]);\n' +
-                '        minX = Math.min(minX, p1[0], p2[0], p3[0], p4[0]);\n' +
-                '        maxX = Math.max(maxX, p1[0], p2[0], p3[0], p4[0]);\n' +
-                '        minY = Math.min(minY, p1[1], p2[1], p3[1], p4[1]);\n' +
-                '        maxY = Math.max(maxY, p1[1], p2[1], p3[1], p4[1]);\n' +
-                '        valid++;\n' +
-                '      }\n' +
-                '    }\n' +
-                '  } catch(e) {}\n' +
-                '}\n' +
-                'if (valid === 0) [200, 80];\n' +
-                'else {\n' +
-                '  var w = (maxX - minX) + padL + padR;\n' +
-                '  var h = (maxY - minY) + padT + padB;\n' +
-                '  [Math.max(10, w), Math.max(10, h)];\n' +
-                '}';
+            rect.property("Size").expression = exprs.sizeExpression;
 
             // Выражение скругления углов
             rect.property("Roundness").expression = 
@@ -800,38 +905,7 @@ var BroadcastQCHost = {
             strk.property("Opacity").setValue(strkOp);
 
             // 5. Выражение Позиции плашки в композиции
-            plateLayer.property("Position").expression = 
-                'var targetLayers = ' + targetLayersJson + ';\n' +
-                'var padL = effect("Padding Left")("Slider");\n' +
-                'var padR = effect("Padding Right")("Slider");\n' +
-                'var padT = effect("Padding Top")("Slider");\n' +
-                'var padB = effect("Padding Bottom")("Slider");\n' +
-                'var minX = 999999, maxX = -999999, minY = 999999, maxY = -999999, valid = 0;\n' +
-                'for (var i = 0; i < targetLayers.length; i++) {\n' +
-                '  try {\n' +
-                '    var l = thisComp.layer(targetLayers[i]);\n' +
-                '    if (l && l.active) {\n' +
-                '      var r = l.sourceRectAtTime(time, false);\n' +
-                '      if (r.width > 0 || r.height > 0) {\n' +
-                '        var p1 = l.toComp([r.left, r.top]);\n' +
-                '        var p2 = l.toComp([r.left + r.width, r.top]);\n' +
-                '        var p3 = l.toComp([r.left, r.top + r.height]);\n' +
-                '        var p4 = l.toComp([r.left + r.width, r.top + r.height]);\n' +
-                '        minX = Math.min(minX, p1[0], p2[0], p3[0], p4[0]);\n' +
-                '        maxX = Math.max(maxX, p1[0], p2[0], p3[0], p4[0]);\n' +
-                '        minY = Math.min(minY, p1[1], p2[1], p3[1], p4[1]);\n' +
-                '        maxY = Math.max(maxY, p1[1], p2[1], p3[1], p4[1]);\n' +
-                '        valid++;\n' +
-                '      }\n' +
-                '    }\n' +
-                '  } catch(e) {}\n' +
-                '}\n' +
-                'if (valid === 0) value;\n' +
-                'else {\n' +
-                '  var cx = (minX + maxX)/2 + (padR - padL)/2;\n' +
-                '  var cy = (minY + maxY)/2 + (padB - padT)/2;\n' +
-                '  hasParent ? fromComp([cx, cy]) : [cx, cy];\n' +
-                '}';
+            plateLayer.property("Position").expression = exprs.positionExpression;
 
             app.endUndoGroup();
 
@@ -843,6 +917,234 @@ var BroadcastQCHost = {
             });
         } catch (e) {
             writeLn("[Broadcast QC] ❌ Ошибка создания Auto-Plate: " + e.toString());
+            return JSONHelper.stringify({ success: false, error: e.toString() });
+        }
+    },
+
+    /**
+     * Обновляет существующую адаптивную плашку: добавляет новые выделенные слои
+     * или перепривязывает охват слоев, обновляет отступы и стиль.
+     */
+    updateAutoPlate: function(configJson) {
+        try {
+            if (!app.project || !app.project.activeItem) {
+                return JSONHelper.stringify({ success: false, error: "Нет открытой активной композиции в After Effects" });
+            }
+            var comp = app.project.activeItem;
+            if (!(comp instanceof CompItem)) {
+                return JSONHelper.stringify({ success: false, error: "Активный элемент не является композицией" });
+            }
+
+            var selLayers = comp.selectedLayers;
+            if (!selLayers || selLayers.length === 0) {
+                return JSONHelper.stringify({
+                    success: false,
+                    error: "Выделите элементы для обновления плашки (выделите все нужные слои вместе с плашкой или существующую плашку и новые слои)"
+                });
+            }
+
+            var config = {};
+            if (typeof configJson === "string") {
+                try { config = JSONHelper.parse(configJson); } catch(pe) { config = {}; }
+            } else if (typeof configJson === "object" && configJson !== null) {
+                config = configJson;
+            }
+
+            function isPlate(l) {
+                if (!l) return false;
+                if (l.name && l.name.indexOf("[Plate]") === 0) return true;
+                try {
+                    if (l instanceof ShapeLayer && l.property("ADBE Effect Parade") && l.property("ADBE Effect Parade").property("Padding Left")) {
+                        return true;
+                    }
+                } catch(e) {}
+                return false;
+            }
+
+            // 1. Разделяем выделенные слои на плашку и целевые элементы
+            var plateLayer = null;
+            var targetLayers = [];
+
+            for (var i = 0; i < selLayers.length; i++) {
+                var s = selLayers[i];
+                if (isPlate(s)) {
+                    if (!plateLayer) {
+                        plateLayer = s;
+                    }
+                } else {
+                    targetLayers.push(s);
+                }
+            }
+
+            // 2. Если в выделении нет слоя плашки, ищем существующую плашку в композиции
+            if (!plateLayer) {
+                // А. Проверяем слой непосредственно под самым нижним выделенным слоем
+                var maxSelIndex = -1;
+                for (var si = 0; si < selLayers.length; si++) {
+                    if (selLayers[si].index > maxSelIndex) maxSelIndex = selLayers[si].index;
+                }
+                if (maxSelIndex > 0 && maxSelIndex < comp.numLayers) {
+                    var nextLayer = comp.layer(maxSelIndex + 1);
+                    if (isPlate(nextLayer)) {
+                        plateLayer = nextLayer;
+                    }
+                }
+
+                // Б. Если не найден прямо под ними, ищем единственную плашку в композиции
+                if (!plateLayer) {
+                    var compPlates = [];
+                    for (var c = 1; c <= comp.numLayers; c++) {
+                        var cl = comp.layer(c);
+                        if (isPlate(cl)) {
+                            compPlates.push(cl);
+                        }
+                    }
+                    if (compPlates.length === 1) {
+                        plateLayer = compPlates[0];
+                    }
+                }
+            }
+
+            if (!plateLayer) {
+                return JSONHelper.stringify({
+                    success: false,
+                    error: "Не удалось определить слой плашки для обновления. Выделите слой плашки [Plate] вместе с целевыми слоями."
+                });
+            }
+
+            // 3. Собираем массив уникальных имен целевых слоев и находим самый нижний целевой слой
+            var targetLayerNames = [];
+            var lowestTarget = targetLayers[0] || null;
+
+            if (targetLayers.length > 0) {
+                for (var t = 0; t < targetLayers.length; t++) {
+                    var tl = targetLayers[t];
+                    if (targetLayerNames.indexOf(tl.name) === -1) {
+                        targetLayerNames.push(tl.name);
+                    }
+                    if (!lowestTarget || tl.index > lowestTarget.index) {
+                        lowestTarget = tl;
+                    }
+                }
+            } else {
+                // Выделена была только сама плашка: считываем существующие целевые слои из выражения
+                try {
+                    var sizeExpr = plateLayer.property("ADBE Root Vectors Group").property("Plate Box").property("Contents").property("Rectangle Path 1").property("Size").expression;
+                    var match = sizeExpr.match(/var\s+fb\s*=\s*(\[.*?\]);/);
+                    if (match && match[1]) {
+                        targetLayerNames = JSONHelper.parse(match[1]);
+                    }
+                } catch(pe) {}
+            }
+
+            if (targetLayerNames.length === 0) {
+                return JSONHelper.stringify({
+                    success: false,
+                    error: "Не выбраны целевые элементы для плашки. Выделите текстовые слои или объекты вместе с плашкой."
+                });
+            }
+
+            app.beginUndoGroup("Обновить адаптивную плашку [Broadcast QC]");
+
+            // 4. Перемещаем слой плашки под самый нижний целевой слой
+            if (lowestTarget && plateLayer.index < lowestTarget.index) {
+                plateLayer.moveAfter(lowestTarget);
+            }
+
+            // Вычисляем новые относительные смещения целевых слоев
+            var relOffsets = [];
+            if (targetLayers.length > 0) {
+                for (var ti = 0; ti < targetLayers.length; ti++) {
+                    var off = targetLayers[ti].index - plateLayer.index;
+                    relOffsets.push(off);
+                }
+            }
+            if (relOffsets.length === 0) {
+                relOffsets = [-1];
+            }
+
+            // 5. Обновляем контроллеры Slider (если заданы в панели)
+            var effGroup = plateLayer.property("ADBE Effect Parade");
+            if (effGroup) {
+                function setSliderVal(name, val) {
+                    try {
+                        var eff = effGroup.property(name);
+                        if (eff && eff.property("Slider")) {
+                            eff.property("Slider").setValue(val);
+                        }
+                    } catch(e) {}
+                }
+                if (config.paddingLeft !== undefined) setSliderVal("Padding Left", config.paddingLeft);
+                if (config.paddingRight !== undefined) setSliderVal("Padding Right", config.paddingRight);
+                if (config.paddingTop !== undefined) setSliderVal("Padding Top", config.paddingTop);
+                if (config.paddingBottom !== undefined) setSliderVal("Padding Bottom", config.paddingBottom);
+                if (config.roundness !== undefined) setSliderVal("Roundness", config.roundness);
+
+                // Удаляем устаревшие контроллеры Target, если они были созданы ранее
+                for (var ei = effGroup.numProperties; ei >= 1; ei--) {
+                    try {
+                        var oldEff = effGroup.property(ei);
+                        if (oldEff && oldEff.name.indexOf("Target") === 0) {
+                            oldEff.remove();
+                        }
+                    } catch(e) {}
+                }
+            }
+
+            // 6. Обновляем стили заливки и обводки (если переданы)
+            if (config.styleData) {
+                try {
+                    var groupContents = plateLayer.property("ADBE Root Vectors Group").property("Plate Box").property("Contents");
+                    if (groupContents) {
+                        var fill = groupContents.property("ADBE Vector Graphic - Fill");
+                        if (fill && config.styleData.color) {
+                            var col = config.styleData.color;
+                            fill.property("Color").setValue([col[0], col[1], col[2], 1.0]);
+                            if (config.styleData.opacity !== undefined) {
+                                fill.property("Opacity").setValue(config.styleData.opacity);
+                            }
+                        }
+                        var stroke = groupContents.property("ADBE Vector Graphic - Stroke");
+                        if (stroke && config.styleData.strokeColor) {
+                            var scol = config.styleData.strokeColor;
+                            stroke.property("Color").setValue([scol[0], scol[1], scol[2], 1.0]);
+                            if (config.styleData.strokeWidth !== undefined) {
+                                stroke.property("Stroke Width").setValue(config.styleData.strokeWidth);
+                            }
+                            if (config.styleData.strokeOpacity !== undefined) {
+                                stroke.property("Opacity").setValue(config.styleData.strokeOpacity);
+                            }
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            // 7. Обновляем выражения Size и Position с новым списком целевых слоев
+            var exprs = this._getPlateExpressions(targetLayerNames, relOffsets);
+
+            try {
+                var rect = plateLayer.property("ADBE Root Vectors Group").property("Plate Box").property("Contents").property("Rectangle Path 1");
+                if (rect) {
+                    rect.property("Size").expression = exprs.sizeExpression;
+                }
+            } catch(e) {}
+
+            plateLayer.property("Position").expression = exprs.positionExpression;
+
+            app.endUndoGroup();
+
+            var count = targetLayerNames.length;
+            var wordDecl = (count % 10 === 1 && count % 100 !== 11) ? "слой" : ((count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20)) ? "слоя" : "слоев");
+
+            return JSONHelper.stringify({
+                success: true,
+                plateLayerName: plateLayer.name,
+                layersCount: count,
+                message: "Плашка «" + plateLayer.name + "» успешно обновлена (охватывает " + count + " " + wordDecl + ")"
+            });
+
+        } catch (e) {
+            writeLn("[Broadcast QC] ❌ Ошибка обновления Auto-Plate: " + e.toString());
             return JSONHelper.stringify({ success: false, error: e.toString() });
         }
     }

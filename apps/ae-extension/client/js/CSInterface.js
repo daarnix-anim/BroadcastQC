@@ -73,6 +73,10 @@ CSInterface.prototype.evalScript = function(script, callback) {
                     callback(JSON.stringify({ success: true, updatedText: "Исправленный текст" }));
                 } else if (script.indexOf("navigateToLayer") !== -1) {
                     callback(JSON.stringify({ success: true }));
+                } else if (script.indexOf("updateAutoPlate") !== -1) {
+                    callback(JSON.stringify({ success: true, plateLayerName: "[Plate] Title_Main", message: "Плашка «[Plate] Title_Main» успешно обновлена (охватывает 3 слоя)" }));
+                } else if (script.indexOf("createAutoPlate") !== -1) {
+                    callback(JSON.stringify({ success: true, plateLayerName: "[Plate] Title_Main", message: "Адаптивная плашка успешно создана для 2 слоев" }));
                 } else {
                     callback(JSON.stringify({ success: true }));
                 }

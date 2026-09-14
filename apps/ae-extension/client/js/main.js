@@ -666,6 +666,7 @@ function initAutoPlateUI() {
   const plateTextSlideDir = document.getElementById('plateTextSlideDir');
 
   const btnCreateAutoPlate = document.getElementById('btnCreateAutoPlate');
+  const btnUpdateAutoPlate = document.getElementById('btnUpdateAutoPlate');
   const plateStyleChips = document.getElementById('plateStyleChips');
 
   // Sync initial values to UI
@@ -776,6 +777,11 @@ function initAutoPlateUI() {
   btnCreateAutoPlate?.addEventListener('click', () => {
     createAutoPlateInAE();
   });
+
+  // Action Button: Update Auto-Plate (Add elements / re-bind targets)
+  btnUpdateAutoPlate?.addEventListener('click', () => {
+    updateAutoPlateInAE();
+  });
 }
 
 function savePlateState() {
@@ -810,6 +816,37 @@ function createAutoPlateInAE() {
       }
     } catch (e) {
       showToast('❌ Ошибка связи с After Effects при создании плашки', 'error');
+      playChime(false);
+    }
+  });
+}
+
+function updateAutoPlateInAE() {
+  const prepared = AutoPlateEngine.prepareConfig(plateState);
+  const jsonPayload = JSON.stringify(prepared);
+
+  if (!csInterface.isCEP) {
+    // Browser Mock Test Mode
+    showToast(`🔄 [Тест] Плашка обновлена: новые слои добавлены, отступы L:${prepared.paddingLeft}/R:${prepared.paddingRight}px`, 'success', 4000);
+    playChime(true);
+    return;
+  }
+
+  showToast('Обновление адаптивной плашки в After Effects...', 'info', 2000);
+
+  const evalStr = `BroadcastQCHost.updateAutoPlate(${JSON.stringify(jsonPayload)})`;
+  csInterface.evalScript(evalStr, (res) => {
+    try {
+      const data = JSON.parse(res);
+      if (data && data.success) {
+        showToast(`✅ ${data.message}`, 'success', 4500);
+        playChime(true);
+      } else {
+        showToast(`❌ ${data?.error || 'Не удалось обновить плашку'}`, 'error', 5000);
+        playChime(false);
+      }
+    } catch (e) {
+      showToast('❌ Ошибка связи с After Effects при обновлении плашки', 'error');
       playChime(false);
     }
   });
@@ -1597,4 +1634,8 @@ function declension(number, titles) {
 }
 
 // Start application
-document.addEventListener('DOMContentLoaded', init);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

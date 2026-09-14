@@ -5,6 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Broadcast QC 2.0</title>
     <link rel="stylesheet" href="css/style.css">
+    <script>
+        window.addEventListener('error', function (e) {
+            var banner = document.getElementById('globalErrorBanner');
+            var msg = document.getElementById('globalErrorMessage');
+            if (banner && msg) {
+                msg.textContent = 'Ошибка загрузки расширения: ' + (e.message || e.error?.message || e);
+                banner.style.display = 'block';
+            }
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+            var banner = document.getElementById('globalErrorBanner');
+            var msg = document.getElementById('globalErrorMessage');
+            if (banner && msg) {
+                msg.textContent = 'Необработанная ошибка: ' + (e.reason?.message || e.reason);
+                banner.style.display = 'block';
+            }
+        });
+    </script>
 </head>
 <body>
     <!-- Global Error Banner (Fallback for uncaught exceptions) -->
@@ -461,8 +479,12 @@
             <button id="btnCreateAutoPlate" class="btn-primary" style="padding: 12px; font-size: 13px; font-weight: 700; width: 100%;">
                 <span>⚡</span> Создать адаптивную плашку
             </button>
+            <button id="btnUpdateAutoPlate" class="btn-secondary" style="padding: 11px; font-size: 12.5px; font-weight: 600; width: 100%; justify-content: center; gap: 6px; border-color: rgba(79, 128, 255, 0.4); background: rgba(79, 128, 255, 0.08);">
+                <span>🔄</span> Обновить плашку (добавить / связать слои)
+            </button>
             <div style="font-size: 11px; color: var(--text-muted); line-height: 1.5; background: rgba(0,0,0,0.2); padding: 8px 10px; border-radius: 6px;">
-                💡 <b>Как использовать:</b> Выделите один или несколько текстовых слоев в After Effects и нажмите кнопку. Плашка будет создана ровно под ними и динамически охватит весь текст. Все отступы и скругление регулируются в панели <b>Effect Controls</b>.
+                💡 <b>Создание:</b> Выделите текстовые слои или объекты и нажмите <b>«Создать адаптивную плашку»</b>.<br>
+                🔄 <b>Добавление элементов:</b> Выделите все элементы (вместе с плашкой или только новые слои) и нажмите <b>«Обновить плашку»</b>.
             </div>
         </div>
     </section>

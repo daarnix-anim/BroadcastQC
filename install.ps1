@@ -59,12 +59,16 @@ if ($isReleasePackage) {
         Copy-Item -Path $item.FullName -Destination $targetExtensionDir -Recurse -Force
     }
 } else {
-    # Режим разработки: копируем apps\ae-extension и packages
+    # Режим разработки: копируем apps\ae-extension и актуальные packages из корня репозитория
     Copy-Item -Path "$sourceExtensionDir\*" -Destination $targetExtensionDir -Recurse -Force
     $packagesDir = Join-Path $projectRoot "packages"
     if (Test-Path $packagesDir) {
         $extPackagesDir = Join-Path $targetExtensionDir "packages"
-        Copy-Item -Path $packagesDir -Destination $extPackagesDir -Recurse -Force
+        if (Test-Path $extPackagesDir) {
+            Remove-Item -Path $extPackagesDir -Recurse -Force
+        }
+        New-Item -Path $extPackagesDir -ItemType Directory -Force | Out-Null
+        Copy-Item -Path "$packagesDir\*" -Destination $extPackagesDir -Recurse -Force
     }
 }
 
