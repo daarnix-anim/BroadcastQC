@@ -30,7 +30,7 @@
 ## 🚀 Установка
 
 ### Быстрая установка (1 клик):
-1. Скачайте архив релиза [broadcast-qc-v0.9.2.zip](https://github.com/daarnix-anim/BroadcastQC/releases/latest).
+1. Скачайте архив релиза [broadcast-qc-v0.9.3.zip](https://github.com/daarnix-anim/BroadcastQC/releases/latest).
 2. Распакуйте архив в любую папку.
 3. Запустите файл `install.bat` (или выполните `install.ps1` через PowerShell).
 4. Запустите или перезапустите **Adobe After Effects** или **Adobe Premiere Pro**.

@@ -28,12 +28,12 @@ export class AutoUpdater {
   /**
    * @param {Object} options
    * @param {string} [options.repo='daarnix-anim/BroadcastQC'] Имя репозитория GitHub
-   * @param {string} [options.currentVersion='0.9.2'] Текущая версия расширения
+   * @param {string} [options.currentVersion='0.9.3'] Текущая версия расширения
    * @param {Function} [options.fetchFn] Опциональная функция fetch для тестов
    */
   constructor(options = {}) {
     this.repo = options.repo || 'daarnix-anim/BroadcastQC';
-    this.currentVersion = options.currentVersion || '0.9.2';
+    this.currentVersion = options.currentVersion || '0.9.3';
     this.fetchFn = options.fetchFn || (typeof fetch !== 'undefined' ? fetch.bind(globalThis) : null);
     this.isNode = typeof process !== 'undefined' && Boolean(process.versions && process.versions.node);
   }

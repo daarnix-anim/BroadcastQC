@@ -11,7 +11,7 @@ import { AIAgent } from '../../packages/ai/index.js';
 import { AutoUpdater } from '../../packages/updater/index.js';
 import { AutoPlateEngine, DEFAULT_PLATE_CONFIG, ORIGIN_POINTS, STYLE_PRESETS } from '../../packages/auto-plate/index.js';
 
-const APP_CURRENT_VERSION = '0.9.2';
+const APP_CURRENT_VERSION = '0.9.3';
 
 // ==========================================
 // 1. Global Error Boundary & Toast System
