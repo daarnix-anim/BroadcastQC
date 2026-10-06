@@ -37,6 +37,8 @@ var JSONHelper = {
         }
         return (isArr ? "[" : "{") + res.join(",") + (isArr ? "]" : "}");
     }
+};
+
 // Multi-host environment compatibility fallbacks for Premiere Pro / non-AE hosts
 if (typeof writeLn === "undefined") {
     var writeLn = function(msg) {
@@ -81,6 +83,8 @@ var AEHostAdapter = {
                 projectPath: (hasProj && proj.file) ? proj.file.fsName : "",
                 hasActiveComp: activeComp !== null,
                 activeCompName: activeComp ? activeComp.name : "",
+                activeCompWidth: activeComp ? activeComp.width : 1920,
+                activeCompHeight: activeComp ? activeComp.height : 1080,
                 activeCompDuration: activeComp ? activeComp.duration : 0,
                 activeCompLayers: activeComp ? activeComp.numLayers : 0,
                 activeCompTextLayers: textLayersCount
@@ -792,6 +796,89 @@ var AEHostAdapter = {
         return { sizeExpression: sizeExpr, positionExpression: posExpr };
     },
 
+    _getMatteSizeExpression: function(plateLayerName) {
+        var safeName = JSONHelper.stringify(plateLayerName);
+        return '// Broadcast QC - Dynamic Text Matte Size\n' +
+               'var plateLayer = thisComp.layer(' + safeName + ');\n' +
+               'var isMasked = 1;\n' +
+               'try { isMasked = plateLayer.effect("Mask Text Content")("Checkbox").value; } catch(e) {}\n' +
+               'if (isMasked == 1) {\n' +
+               '  plateLayer.content("Plate Box").content("Rectangle Path 1").size;\n' +
+               '} else {\n' +
+               '  [999999, 999999];\n' +
+               '}';
+    },
+
+    _getMatteRoundnessExpression: function(plateLayerName) {
+        var safeName = JSONHelper.stringify(plateLayerName);
+        return '// Broadcast QC - Dynamic Text Matte Roundness\n' +
+               'var plateLayer = thisComp.layer(' + safeName + ');\n' +
+               'var isMasked = 1;\n' +
+               'try { isMasked = plateLayer.effect("Mask Text Content")("Checkbox").value; } catch(e) {}\n' +
+               'if (isMasked == 1) {\n' +
+               '  plateLayer.content("Plate Box").content("Rectangle Path 1").roundness;\n' +
+               '} else {\n' +
+               '  0;\n' +
+               '}';
+    },
+
+    _createMatteLayer: function(comp, plateLayer) {
+        var expectedName = "[Matte] " + plateLayer.name;
+        var matteLayer = comp.layers.addShape();
+        matteLayer.name = expectedName;
+        matteLayer.moveBefore(plateLayer);
+
+        var plateNameEscaped = JSONHelper.stringify(plateLayer.name);
+        matteLayer.property("Anchor Point").expression = 'thisComp.layer(' + plateNameEscaped + ').transform.anchorPoint;';
+        matteLayer.property("Position").expression = 'thisComp.layer(' + plateNameEscaped + ').transform.position;';
+        matteLayer.property("Scale").expression = 'thisComp.layer(' + plateNameEscaped + ').transform.scale;';
+        matteLayer.property("Rotation").expression = 'thisComp.layer(' + plateNameEscaped + ').transform.rotation;';
+
+        var matteContents = matteLayer.property("ADBE Root Vectors Group");
+        var matteShapeGroup = matteContents.addProperty("ADBE Vector Group");
+        matteShapeGroup.name = "Matte Box";
+        var matteGroupContents = matteShapeGroup.property("Contents");
+
+        var matteRect = matteGroupContents.addProperty("ADBE Vector Shape - Rect");
+        matteRect.name = "Rectangle Path 1";
+        matteRect.property("Position").setValue([0, 0]);
+        matteRect.property("Size").expression = this._getMatteSizeExpression(plateLayer.name);
+        matteRect.property("Roundness").expression = this._getMatteRoundnessExpression(plateLayer.name);
+
+        var matteFill = matteGroupContents.addProperty("ADBE Vector Graphic - Fill");
+        matteFill.property("Color").setValue([1.0, 1.0, 1.0, 1.0]);
+        matteFill.property("Opacity").setValue(100);
+
+        matteLayer.shy = true;
+        matteLayer.locked = true;
+        matteLayer.enabled = false;
+
+        return matteLayer;
+    },
+
+    _applyTrackMatteToLayers: function(layers, matteLayer) {
+        if (!layers || layers.length === 0) return;
+        for (var i = 0; i < layers.length; i++) {
+            var l = layers[i];
+            if (!l) continue;
+            try {
+                if (matteLayer) {
+                    if (typeof l.setTrackMatte === "function") {
+                        l.setTrackMatte(matteLayer, TrackMatteType.ALPHA);
+                    } else {
+                        l.trackMatteType = TrackMatteType.ALPHA;
+                    }
+                } else {
+                    if (typeof l.setTrackMatte === "function") {
+                        l.setTrackMatte(null, TrackMatteType.NO_TRACK_MATTE);
+                    } else {
+                        l.trackMatteType = TrackMatteType.NO_TRACK_MATTE;
+                    }
+                }
+            } catch(e) {}
+        }
+    },
+
     /**
      * Создает адаптивную плашку под выделенные слои (текст, иконки, объекты)
      * с динамическим охватом, независимыми отступами (Paddings) и скруглением углов.
@@ -870,6 +957,11 @@ var AEHostAdapter = {
             addSlider("Padding Bottom", padB);
             addSlider("Roundness", roundness);
 
+            var maskChk = effGroup.addProperty("ADBE Checkbox Control");
+            maskChk.name = "Mask Text Content";
+            var shouldMask = (config.enableMask !== false);
+            maskChk.property("Checkbox").setValue(shouldMask ? 1 : 0);
+
             // Вычисляем относительные смещения каждого целевого слоя относительно слоя плашки
             var relOffsets = [];
             for (var ti = 0; ti < selLayers.length; ti++) {
@@ -920,6 +1012,12 @@ var AEHostAdapter = {
             // 5. Выражение Позиции плашки в композиции
             plateLayer.property("Position").expression = exprs.positionExpression;
 
+            // 6. Если включена опция маскирования, создаем служебную подложку [Matte] и привязываем Track Matte
+            if (shouldMask) {
+                var matteLayer = this._createMatteLayer(comp, plateLayer);
+                this._applyTrackMatteToLayers(selLayers, matteLayer);
+            }
+
             app.endUndoGroup();
 
             return JSONHelper.stringify({
@@ -965,6 +1063,7 @@ var AEHostAdapter = {
 
             function isPlate(l) {
                 if (!l) return false;
+                if (l.name && l.name.indexOf("[Matte]") === 0) return false;
                 if (l.name && l.name.indexOf("[Plate]") === 0) return true;
                 try {
                     if (l instanceof ShapeLayer && l.property("ADBE Effect Parade") && l.property("ADBE Effect Parade").property("Padding Left")) {
@@ -980,6 +1079,9 @@ var AEHostAdapter = {
 
             for (var i = 0; i < selLayers.length; i++) {
                 var s = selLayers[i];
+                if (s.name && s.name.indexOf("[Matte]") === 0) {
+                    continue; // Пропускаем служебный слой подложки
+                }
                 if (isPlate(s)) {
                     if (!plateLayer) {
                         plateLayer = s;
@@ -1048,6 +1150,15 @@ var AEHostAdapter = {
                         targetLayerNames = JSONHelper.parse(match[1]);
                     }
                 } catch(pe) {}
+
+                if (targetLayerNames.length > 0) {
+                    for (var tn = 0; tn < targetLayerNames.length; tn++) {
+                        try {
+                            var fl = comp.layer(targetLayerNames[tn]);
+                            if (fl) targetLayers.push(fl);
+                        } catch(fe) {}
+                    }
+                }
             }
 
             if (targetLayerNames.length === 0) {
@@ -1143,6 +1254,48 @@ var AEHostAdapter = {
             } catch(e) {}
 
             plateLayer.property("Position").expression = exprs.positionExpression;
+
+            // 8. Обновление / создание служебной подложки [Matte] и привязка Track Matte
+            var matteLayer = null;
+            var expectedMatteName = "[Matte] " + plateLayer.name;
+            for (var mi = 1; mi <= comp.numLayers; mi++) {
+                var compLayer = comp.layer(mi);
+                if (compLayer && compLayer.name === expectedMatteName) {
+                    matteLayer = compLayer;
+                    break;
+                }
+            }
+
+            var shouldMask = (config.enableMask !== false);
+
+            if (effGroup) {
+                var maskChk = null;
+                try {
+                    maskChk = effGroup.property("Mask Text Content");
+                } catch(me) {}
+                if (!maskChk && shouldMask) {
+                    maskChk = effGroup.addProperty("ADBE Checkbox Control");
+                    maskChk.name = "Mask Text Content";
+                }
+                if (maskChk && maskChk.property("Checkbox")) {
+                    maskChk.property("Checkbox").setValue(shouldMask ? 1 : 0);
+                }
+            }
+
+            if (shouldMask) {
+                if (!matteLayer) {
+                    // Плашка была создана без маски — создаем подложку [Matte] прямо сейчас!
+                    matteLayer = this._createMatteLayer(comp, plateLayer);
+                } else {
+                    try {
+                        matteLayer.moveBefore(plateLayer);
+                    } catch(mve) {}
+                }
+                this._applyTrackMatteToLayers(targetLayers, matteLayer);
+            } else {
+                // Если пользователь отключил маску при обновлении, отвязываем Track Matte
+                this._applyTrackMatteToLayers(targetLayers, null);
+            }
 
             app.endUndoGroup();
 
@@ -1250,6 +1403,8 @@ var PProHostAdapter = {
                 projectPath: pPath,
                 hasActiveComp: activeSeq !== null,
                 activeCompName: seqName,
+                activeCompWidth: activeSeq ? (activeSeq.frameSizeHorizontal || 1920) : 1920,
+                activeCompHeight: activeSeq ? (activeSeq.frameSizeVertical || 1080) : 1080,
                 activeCompDuration: seqDur,
                 activeCompLayers: seqLayersCount,
                 activeCompTextLayers: textItemsCount
@@ -1675,16 +1830,271 @@ var PProHostAdapter = {
         }
     },
 
-    toggleSafeZoneOverlay: function(marginPercentJson, forceState) {
-        return JSONHelper.stringify({
-            success: true,
-            active: false,
-            message: "В Premiere Pro используйте кнопку «Safe Margins» в окне Program Monitor для отображения безопасных границ"
-        });
+    toggleSafeZoneOverlay: function(marginPercentJson, forceState, overlayImagePath) {
+        try {
+            if (!app.project) {
+                return JSONHelper.stringify({
+                    success: false,
+                    error: "В Premiere Pro не открыт проект. Откройте проект .prproj."
+                });
+            }
+            var seq = app.project.activeSequence;
+            if (!seq) {
+                return JSONHelper.stringify({
+                    success: false,
+                    error: "Не выбрана активная секвенция на таймлайне Premiere Pro. Откройте секвенцию."
+                });
+            }
+
+            var guideName = "[QC Guide] Safe Zone";
+            var existingClip = null;
+            var existingTrack = null;
+            var existingTrackIdx = -1;
+
+            // Search for existing guide overlay clip across all video tracks
+            if (seq.videoTracks) {
+                for (var vt = 0; vt < seq.videoTracks.numTracks; vt++) {
+                    var vTrack = seq.videoTracks[vt];
+                    if (!vTrack || !vTrack.clips) continue;
+                    for (var c = 0; c < vTrack.clips.numItems; c++) {
+                        var item = vTrack.clips[c];
+                        if (item && (item.name === guideName || (item.projectItem && item.projectItem.name === guideName))) {
+                            existingClip = item;
+                            existingTrack = vTrack;
+                            existingTrackIdx = vt;
+                            break;
+                        }
+                    }
+                    if (existingClip) break;
+                }
+            }
+
+            var shouldEnable = true;
+            if (forceState !== undefined && forceState !== null) {
+                shouldEnable = (forceState === true || forceState === "true");
+            } else if (existingClip && !existingClip.disabled) {
+                shouldEnable = false; // Toggle off if currently visible
+            }
+
+            // 1. If disabling/hiding overlay
+            if (!shouldEnable) {
+                if (existingClip) {
+                    existingClip.disabled = true;
+                }
+                return JSONHelper.stringify({
+                    success: true,
+                    active: false,
+                    trackName: existingTrackIdx >= 0 ? ("V" + (existingTrackIdx + 1)) : "",
+                    message: "Оверлей Safe Zone скрыт с таймлайна Premiere Pro"
+                });
+            }
+
+            // 2. If existing clip already exists on timeline, enable it
+            if (existingClip) {
+                existingClip.disabled = false;
+                if (overlayImagePath && existingClip.projectItem && typeof existingClip.projectItem.changeMediaPath === "function") {
+                    try {
+                        var updFile = new File(overlayImagePath);
+                        if (updFile.exists) {
+                            existingClip.projectItem.changeMediaPath(updFile.fsName, true);
+                        }
+                    } catch (mErr) {}
+                }
+                return JSONHelper.stringify({
+                    success: true,
+                    active: true,
+                    trackIndex: existingTrackIdx + 1,
+                    trackName: "V" + (existingTrackIdx + 1),
+                    message: "Оверлей Safe Zone включен на дорожке V" + (existingTrackIdx + 1)
+                });
+            }
+
+            // 3. New overlay insertion: verify overlay image file
+            if (!overlayImagePath) {
+                return JSONHelper.stringify({
+                    success: false,
+                    error: "Файл изображения Safe Zone не предоставлен для Premiere Pro"
+                });
+            }
+
+            var imgFile = new File(overlayImagePath);
+            if (!imgFile.exists) {
+                return JSONHelper.stringify({
+                    success: false,
+                    error: "Файл изображения оверлея не найден: " + overlayImagePath
+                });
+            }
+
+            // Find or create bin "[Broadcast QC Guides]" in rootItem
+            var qcBin = null;
+            if (app.project.rootItem && app.project.rootItem.children) {
+                for (var b = 0; b < app.project.rootItem.children.numItems; b++) {
+                    var ch = app.project.rootItem.children[b];
+                    if (ch && ch.name === "[Broadcast QC Guides]" && ch.type === 2) {
+                        qcBin = ch;
+                        break;
+                    }
+                }
+            }
+            if (!qcBin) {
+                try {
+                    qcBin = app.project.rootItem.createBin("[Broadcast QC Guides]");
+                } catch (be) {
+                    qcBin = app.project.rootItem;
+                }
+            }
+
+            // Check if projectItem already exists in qcBin
+            var targetProjectItem = null;
+            if (qcBin && qcBin.children) {
+                for (var pi = 0; pi < qcBin.children.numItems; pi++) {
+                    var candidate = qcBin.children[pi];
+                    if (candidate && candidate.name === guideName) {
+                        targetProjectItem = candidate;
+                        try {
+                            targetProjectItem.changeMediaPath(imgFile.fsName, true);
+                        } catch (cmErr) {}
+                        break;
+                    }
+                }
+            }
+
+            if (!targetProjectItem) {
+                var importPaths = [imgFile.fsName];
+                app.project.importFiles(importPaths, true, qcBin, false);
+
+                var searchBin = qcBin || app.project.rootItem;
+                if (searchBin && searchBin.children) {
+                    for (var i = searchBin.children.numItems - 1; i >= 0; i--) {
+                        var newlyImported = searchBin.children[i];
+                        if (newlyImported && (newlyImported.name === imgFile.name || newlyImported.name === guideName)) {
+                            targetProjectItem = newlyImported;
+                            targetProjectItem.name = guideName;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!targetProjectItem) {
+                return JSONHelper.stringify({
+                    success: false,
+                    error: "Не удалось импортировать файл Safe Zone в проект Premiere Pro"
+                });
+            }
+
+            // Select video track: find highest empty video track or topmost track
+            var targetTrack = null;
+            var chosenIdx = -1;
+
+            if (seq.videoTracks && seq.videoTracks.numTracks > 0) {
+                for (var t = seq.videoTracks.numTracks - 1; t >= 0; t--) {
+                    var tr = seq.videoTracks[t];
+                    if (tr && tr.clips && tr.clips.numItems === 0) {
+                        targetTrack = tr;
+                        chosenIdx = t;
+                        break;
+                    }
+                }
+
+                if (!targetTrack) {
+                    try {
+                        if (typeof app.enableQE === "function") {
+                            app.enableQE();
+                            if (typeof qe !== "undefined" && qe.project && qe.project.getActiveSequence) {
+                                var qeSeq = qe.project.getActiveSequence();
+                                if (qeSeq && qeSeq.addTracks) {
+                                    qeSeq.addTracks(1, 0);
+                                    chosenIdx = seq.videoTracks.numTracks - 1;
+                                    targetTrack = seq.videoTracks[chosenIdx];
+                                }
+                            }
+                        }
+                    } catch (qeErr) {}
+                }
+
+                if (!targetTrack) {
+                    chosenIdx = seq.videoTracks.numTracks - 1;
+                    targetTrack = seq.videoTracks[chosenIdx];
+                }
+            }
+
+            if (!targetTrack) {
+                return JSONHelper.stringify({
+                    success: false,
+                    error: "Не найдена видеодорожка для размещения Safe Zone"
+                });
+            }
+
+            var startTime = 0;
+            if (typeof Time !== "undefined") {
+                try {
+                    var tObj = new Time();
+                    tObj.seconds = 0;
+                    startTime = tObj;
+                } catch (timeErr) {}
+            }
+
+            targetTrack.overwriteClip(targetProjectItem, startTime);
+
+            // Set duration to span entire sequence
+            for (var cIdx = targetTrack.clips.numItems - 1; cIdx >= 0; cIdx--) {
+                var cl = targetTrack.clips[cIdx];
+                if (cl && (cl.name === guideName || (cl.projectItem && cl.projectItem.name === guideName))) {
+                    cl.name = guideName;
+                    cl.disabled = false;
+                    if (seq.end) {
+                        try {
+                            cl.end = seq.end;
+                        } catch (endErr) {}
+                    }
+                    break;
+                }
+            }
+
+            return JSONHelper.stringify({
+                success: true,
+                active: true,
+                trackIndex: chosenIdx + 1,
+                trackName: "V" + (chosenIdx + 1),
+                message: "Оверлей Safe Zone успешно размещен на дорожке V" + (chosenIdx + 1) + " в Premiere Pro"
+            });
+        } catch (e) {
+            return JSONHelper.stringify({
+                success: false,
+                error: "Ошибка создания Safe Zone в Premiere Pro: " + e.toString()
+            });
+        }
     },
 
     getSafeZoneOverlayStatus: function() {
-        return JSONHelper.stringify({ success: true, active: false });
+        try {
+            if (!app.project || !app.project.activeSequence) {
+                return JSONHelper.stringify({ success: true, active: false });
+            }
+            var seq = app.project.activeSequence;
+            var guideName = "[QC Guide] Safe Zone";
+            if (seq.videoTracks) {
+                for (var vt = 0; vt < seq.videoTracks.numTracks; vt++) {
+                    var track = seq.videoTracks[vt];
+                    if (!track || !track.clips) continue;
+                    for (var c = 0; c < track.clips.numItems; c++) {
+                        var clip = track.clips[c];
+                        if (clip && (clip.name === guideName || (clip.projectItem && clip.projectItem.name === guideName))) {
+                            return JSONHelper.stringify({
+                                success: true,
+                                active: !clip.disabled,
+                                trackIndex: vt + 1,
+                                trackName: "V" + (vt + 1)
+                            });
+                        }
+                    }
+                }
+            }
+            return JSONHelper.stringify({ success: true, active: false });
+        } catch (e) {
+            return JSONHelper.stringify({ success: false, active: false, error: e.toString() });
+        }
     }
 };
 
@@ -1712,8 +2122,8 @@ var BroadcastQCHost = {
     navigateToLayer: function(layerIndex, timeInSeconds, compId) {
         return this.isPPro() ? PProHostAdapter.navigateToLayer(layerIndex, timeInSeconds, compId) : AEHostAdapter.navigateToLayer(layerIndex, timeInSeconds, compId);
     },
-    toggleSafeZoneOverlay: function(marginPercentJson, forceState) {
-        return this.isPPro() ? PProHostAdapter.toggleSafeZoneOverlay(marginPercentJson, forceState) : AEHostAdapter.toggleSafeZoneOverlay(marginPercentJson, forceState);
+    toggleSafeZoneOverlay: function(marginPercentJson, forceState, overlayImagePath) {
+        return this.isPPro() ? PProHostAdapter.toggleSafeZoneOverlay(marginPercentJson, forceState, overlayImagePath) : AEHostAdapter.toggleSafeZoneOverlay(marginPercentJson, forceState);
     },
     getSafeZoneOverlayStatus: function() {
         return this.isPPro() ? PProHostAdapter.getSafeZoneOverlayStatus() : AEHostAdapter.getSafeZoneOverlayStatus();

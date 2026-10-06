@@ -300,12 +300,12 @@
                 </div>
             </div>
 
-            <!-- Action Buttons for After Effects Overlay -->
+            <!-- Action Buttons for Host Overlay (After Effects & Premiere Pro) -->
             <div style="display: flex; gap: 8px; margin-top: 2px;">
                 <button id="btnToggleSafeZoneOverlay" class="btn-primary" style="flex: 1; font-size: 12px; background: linear-gradient(135deg, #e52d27 0%, #b31217 100%); border-color: #ff334b; box-shadow: 0 2px 8px rgba(255, 51, 75, 0.25);">
-                    <span id="overlayBtnIcon">🚨</span> <span id="overlayBtnText">Показать красные границы в AE</span>
+                    <span id="overlayBtnIcon">🚨</span> <span id="overlayBtnText">Показать красные границы</span>
                 </button>
-                <button id="btnRemoveSafeZoneOverlay" class="btn-secondary" style="font-size: 12px; white-space: nowrap;" title="Скрыть/удалить оверлей из композиции">
+                <button id="btnRemoveSafeZoneOverlay" class="btn-secondary" style="font-size: 12px; white-space: nowrap;" title="Скрыть/удалить оверлей с таймлайна">
                     🗑 Скрыть
                 </button>
             </div>
@@ -314,7 +314,7 @@
         <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px;">
             <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px;">📐 Принцип работы Safe Zone:</div>
             <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.5;">
-                • Кнопка <b>«🚨 Показать красные границы в AE»</b> создает нерендерный Guide-слой с точной красной рамкой прямо на таймлайне After Effects.<br>
+                • Кнопка <b>«🚨 Показать красные границы»</b> создает нерендерный Guide-слой на таймлайне After Effects или оверлей-клип на верхней видеодорожке Premiere Pro с точными границами и зонами соцсетей.<br>
                 • Safe Zone анализируется <b>только в моменты стабильного состояния текста (Stable States)</b>, исключая ложные срабатывания во время анимации.
             </div>
         </div>
@@ -477,6 +477,20 @@
                     <span id="plateOpacityVal" class="val-pill">90%</span>
                 </label>
                 <input type="range" id="plateOpacity" min="10" max="100" value="90" class="range-slider">
+            </div>
+        </div>
+
+        <!-- 4. Маскирование текста (Text Masking) -->
+        <div class="action-card" style="gap: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label class="checkbox-label" for="chkPlateMask" style="font-size: 11.5px; font-weight: 700; color: var(--text-main); cursor: pointer; user-select: none;">
+                    <input type="checkbox" id="chkPlateMask" checked style="width: 14px; height: 14px; accent-color: var(--accent);">
+                    <span>✂️ Маска текста по границам плашки</span>
+                </label>
+                <span class="badge" style="font-size: 10px; background: rgba(79, 128, 255, 0.15); color: var(--accent); padding: 2px 6px; border-radius: 4px;">Track Matte</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                Ограничивает текст границами плашки для анимации вылета. Текст сохраняет 100% непрозрачность и цвет при полупрозрачной плашке. Включается и выключается в Effect Controls.
             </div>
         </div>
 

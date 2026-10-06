@@ -284,6 +284,8 @@ const autoPlateHeaderBadge = document.getElementById('autoPlateHeaderBadge');
 
 let hostAppId = 'AEFT';
 let isPPro = false;
+let isSafeZoneOverlayActive = false;
+let lastActiveContainerSize = { width: 1920, height: 1080 };
 
 function detectHostApp() {
   try {
@@ -327,10 +329,14 @@ function applyHostAdaptation(appVersion = '2026') {
       btnUpdatePlate.style.opacity = '0.5';
     }
     if (overlayText) {
-      overlayText.textContent = 'Safe Margins в Program Monitor';
+      overlayText.textContent = isSafeZoneOverlayActive
+        ? 'Скрыть красные границы (PPro)'
+        : 'Показать красные границы (PPro)';
     }
     if (btnToggleOverlay) {
-      btnToggleOverlay.title = 'В Premiere Pro используйте кнопку Safe Margins в окне Program Monitor';
+      btnToggleOverlay.title = 'Разместить визуальный оверлей безопасных границ на видеодорожке таймлайна Premiere Pro';
+      btnToggleOverlay.disabled = false;
+      btnToggleOverlay.style.opacity = '1';
     }
     if (runBtnText) {
       runBtnText.textContent = chkEntire && chkEntire.checked
@@ -419,6 +425,14 @@ function checkHostConnection(silent = false) {
         let statusStr = `${isPPro ? 'PPro' : 'AE'} ${data.appVersion || '2026'}`;
         const unitWord = isPPro ? ['клип/субтитр', 'клипа/субтитра', 'клипов/субтитров'] : ['слой', 'слоя', 'слоев'];
         const containerType = isPPro ? 'секвенция' : 'композиция';
+
+        if (data.activeCompWidth && data.activeCompHeight) {
+          lastActiveContainerSize = {
+            width: Number(data.activeCompWidth) || 1920,
+            height: Number(data.activeCompHeight) || 1080
+          };
+        }
+        checkSafeZoneOverlayStatus();
 
         if (data.hasActiveComp && data.activeCompName) {
           statusStr = `${data.activeCompName} (${data.activeCompTextLayers} ${declension(data.activeCompTextLayers, unitWord)})`;
@@ -654,8 +668,8 @@ function initSafeZoneUI() {
     }
 
     updateSafeZoneVisualPreview();
-    if (isSafeZoneOverlayActiveInAE) {
-      applySafeZoneOverlayToAE(true);
+    if (isSafeZoneOverlayActive) {
+      applySafeZoneOverlay(true);
     }
   });
 
@@ -663,8 +677,8 @@ function initSafeZoneUI() {
     if (selectSafePreset.value === 'custom') {
       qcCore.safeZoneChecker.customMarginPercent = getEffectiveSafeZoneMargins();
       updateSafeZoneVisualPreview();
-      if (isSafeZoneOverlayActiveInAE) {
-        applySafeZoneOverlayToAE(true);
+      if (isSafeZoneOverlayActive) {
+        applySafeZoneOverlay(true);
       }
     }
   };
@@ -674,39 +688,216 @@ function initSafeZoneUI() {
   customMarginT?.addEventListener('input', onCustomMarginInput);
   customMarginB?.addEventListener('input', onCustomMarginInput);
 
-  // Toggle Red Overlay Guide Layer in After Effects
+  // Toggle Red Overlay Guide Layer in After Effects or Premiere Pro
   btnToggleSafeZoneOverlay?.addEventListener('click', () => {
-    applySafeZoneOverlayToAE(!isSafeZoneOverlayActiveInAE);
+    applySafeZoneOverlay(!isSafeZoneOverlayActive);
   });
 
   btnRemoveSafeZoneOverlay?.addEventListener('click', () => {
-    applySafeZoneOverlayToAE(false);
+    applySafeZoneOverlay(false);
   });
 }
 
-function applySafeZoneOverlayToAE(enable) {
-  const margins = getEffectiveSafeZoneMargins();
-  const marginsJson = JSON.stringify(margins);
+function updateSafeZoneButtonVisuals(isActive) {
+  if (overlayBtnIcon) overlayBtnIcon.textContent = isActive ? '👁️' : '🚨';
+  if (overlayBtnText) {
+    const hostTag = isPPro ? 'Premiere' : 'AE';
+    overlayBtnText.textContent = isActive
+      ? `Скрыть красные границы (${hostTag})`
+      : `Показать красные границы (${hostTag})`;
+  }
+}
 
-  csInterface.evalScript(`BroadcastQCHost.toggleSafeZoneOverlay(${JSON.stringify(marginsJson)}, ${enable})`, (res) => {
+function checkSafeZoneOverlayStatus() {
+  csInterface.evalScript('BroadcastQCHost.getSafeZoneOverlayStatus()', (res) => {
     try {
       const data = JSON.parse(res);
       if (data && data.success) {
-        isSafeZoneOverlayActiveInAE = !!data.active;
-        if (isSafeZoneOverlayActiveInAE) {
-          if (overlayBtnIcon) overlayBtnIcon.textContent = '👁️';
-          if (overlayBtnText) overlayBtnText.textContent = 'Скрыть красные границы в AE';
-          showToast(`🚨 Красные границы Safe Zone включены в After Effects (${margins.left}%L, ${margins.top}%T)`, 'success', 3500);
+        isSafeZoneOverlayActive = !!data.active;
+        updateSafeZoneButtonVisuals(isSafeZoneOverlayActive);
+      }
+    } catch (e) {}
+  });
+}
+
+function generateSafeZoneOverlayPng(margins, width, height, presetName) {
+  try {
+    const w = width || 1920;
+    const h = height || 1080;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.clearRect(0, 0, w, h);
+
+    const leftPx = Math.round((w * margins.left) / 100);
+    const rightPx = Math.round((w * margins.right) / 100);
+    const topPx = Math.round((w * margins.top) / 100);
+    const bottomPx = Math.round((w * margins.bottom) / 100);
+
+    const boxW = Math.max(10, w - leftPx - rightPx);
+    const boxH = Math.max(10, h - topPx - bottomPx);
+
+    // 1. Red dashed safe boundary rectangle
+    ctx.strokeStyle = '#ff1a35';
+    ctx.lineWidth = Math.max(3, Math.round(w / 480));
+    ctx.setLineDash([Math.round(w / 100), Math.round(w / 200)]);
+    ctx.strokeRect(leftPx, topPx, boxW, boxH);
+
+    // 2. Corner markings
+    ctx.setLineDash([]);
+    const cornerLen = Math.round(w / 40);
+    ctx.lineWidth = Math.max(4, Math.round(w / 350));
+    // Top-left
+    ctx.beginPath();
+    ctx.moveTo(leftPx, topPx + cornerLen);
+    ctx.lineTo(leftPx, topPx);
+    ctx.lineTo(leftPx + cornerLen, topPx);
+    ctx.stroke();
+    // Top-right
+    ctx.beginPath();
+    ctx.moveTo(w - rightPx - cornerLen, topPx);
+    ctx.lineTo(w - rightPx, topPx);
+    ctx.lineTo(w - rightPx, topPx + cornerLen);
+    ctx.stroke();
+    // Bottom-left
+    ctx.beginPath();
+    ctx.moveTo(leftPx, h - bottomPx - cornerLen);
+    ctx.lineTo(leftPx, h - bottomPx);
+    ctx.lineTo(leftPx + cornerLen, h - bottomPx);
+    ctx.stroke();
+    // Bottom-right
+    ctx.beginPath();
+    ctx.moveTo(w - rightPx - cornerLen, h - bottomPx);
+    ctx.lineTo(w - rightPx, h - bottomPx);
+    ctx.lineTo(w - rightPx, h - bottomPx - cornerLen);
+    ctx.stroke();
+
+    // 3. Platform Cutouts (TikTok, Reels, VK, Shorts)
+    if (margins.cutouts && margins.cutouts.length > 0) {
+      for (let i = 0; i < margins.cutouts.length; i++) {
+        const cutout = margins.cutouts[i];
+        const cL = Math.round((w * (cutout.leftPct || 0)) / 100);
+        const cR = Math.round((w * (cutout.rightPct || 100)) / 100);
+        const cT = Math.round((h * (cutout.topPct || 0)) / 100);
+        const cB = Math.round((h * (cutout.bottomPct || 100)) / 100);
+        const cW = Math.max(4, cR - cL);
+        const cH = Math.max(4, cB - cT);
+
+        // Semi-transparent red fill
+        ctx.fillStyle = 'rgba(255, 26, 53, 0.22)';
+        ctx.fillRect(cL, cT, cW, cH);
+
+        // Dashed border
+        ctx.strokeStyle = '#ff334b';
+        ctx.lineWidth = Math.max(2, Math.round(w / 600));
+        ctx.setLineDash([8, 4]);
+        ctx.strokeRect(cL, cT, cW, cH);
+        ctx.setLineDash([]);
+
+        // Label
+        if (cutout.name) {
+          const fontSize = Math.max(14, Math.round(w / 65));
+          ctx.font = `bold ${fontSize}px sans-serif`;
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+          ctx.shadowBlur = 4;
+          ctx.fillText(cutout.name, cL + cW / 2, cT + cH / 2);
+          ctx.shadowBlur = 0;
+        }
+      }
+    }
+
+    // 4. Header Badge in top-left
+    const badgeText = `[Broadcast QC] Safe Zone: ${presetName || 'EBU R95'} (${margins.left}% / ${margins.top}%)`;
+    const bFontSize = Math.max(12, Math.round(w / 90));
+    ctx.font = `600 ${bFontSize}px sans-serif`;
+    const bMetrics = ctx.measureText(badgeText);
+    const bPadH = 10;
+    const bPadV = 5;
+    const bW = bMetrics.width + bPadH * 2;
+    const bH = bFontSize + bPadV * 2;
+    const bX = leftPx;
+    const bY = Math.max(4, topPx - bH - 4);
+
+    ctx.fillStyle = 'rgba(229, 45, 39, 0.9)';
+    ctx.fillRect(bX, bY, bW, bH);
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badgeText, bX + bPadH, bY + bH / 2);
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
+
+    // Write file using Node fs or window.cep.fs
+    let targetPath = '';
+    let nodeFs = null;
+    let nodePath = null;
+    let nodeOs = null;
+
+    if (typeof require !== 'undefined') {
+      try { nodeFs = require('fs'); } catch (e) {}
+      try { nodePath = require('path'); } catch (e) {}
+      try { nodeOs = require('os'); } catch (e) {}
+    }
+
+    const tmpDir = (nodeOs && nodeOs.tmpdir) ? nodeOs.tmpdir() : (window.cep ? window.cep.fs.getSystemPath(window.SystemPath.USER_DATA) : '/tmp');
+    const fileName = 'broadcast_qc_safezone_overlay.png';
+    targetPath = nodePath ? nodePath.join(tmpDir, fileName) : (tmpDir + '/' + fileName);
+
+    if (nodeFs && nodeFs.writeFileSync) {
+      nodeFs.writeFileSync(targetPath, Buffer.from(base64Data, 'base64'));
+    } else if (window.cep && window.cep.fs && window.cep.fs.writeFile) {
+      window.cep.fs.writeFile(targetPath, base64Data, window.cep.encoding.Base64);
+    }
+
+    return targetPath;
+  } catch (err) {
+    console.error('[Broadcast QC] Error generating Safe Zone PNG:', err);
+    return null;
+  }
+}
+
+function applySafeZoneOverlay(enable) {
+  const margins = getEffectiveSafeZoneMargins();
+  const marginsJson = JSON.stringify(margins);
+  const presetKey = selectSafePreset ? selectSafePreset.value : 'EBU_R95';
+  const presetName = selectSafePreset?.options[selectSafePreset.selectedIndex]?.text || 'Safe Zone';
+
+  let pproPngPath = null;
+  if (isPPro && enable) {
+    const isVertical = presetKey && presetKey.indexOf('9_16') !== -1;
+    const compW = lastActiveContainerSize.width || (isVertical ? 1080 : 1920);
+    const compH = lastActiveContainerSize.height || (isVertical ? 1920 : 1080);
+    pproPngPath = generateSafeZoneOverlayPng(margins, compW, compH, presetName);
+  }
+
+  const pproArg = pproPngPath ? JSON.stringify(pproPngPath) : 'null';
+
+  csInterface.evalScript(`BroadcastQCHost.toggleSafeZoneOverlay(${JSON.stringify(marginsJson)}, ${enable}, ${pproArg})`, (res) => {
+    try {
+      const data = JSON.parse(res);
+      if (data && data.success) {
+        isSafeZoneOverlayActive = !!data.active;
+        updateSafeZoneButtonVisuals(isSafeZoneOverlayActive);
+
+        const hostName = isPPro ? 'Premiere Pro' : 'After Effects';
+        if (isSafeZoneOverlayActive) {
+          const trackDetail = data.trackName ? ` на дорожке ${data.trackName}` : ` (${margins.left}%L, ${margins.top}%T)`;
+          showToast(`🚨 Красные границы Safe Zone включены в ${hostName}${trackDetail}`, 'success', 3500);
         } else {
-          if (overlayBtnIcon) overlayBtnIcon.textContent = '🚨';
-          if (overlayBtnText) overlayBtnText.textContent = 'Показать красные границы в AE';
-          showToast('Границы Safe Zone скрыты в After Effects', 'info', 2500);
+          showToast(`Границы Safe Zone скрыты в ${hostName}`, 'info', 2500);
         }
       } else {
-        showToast(`Ошибка: ${data?.error || 'Не удалось обновить оверлей в AE'}`, 'error');
+        showToast(`Ошибка: ${data?.error || 'Не удалось обновить оверлей'}`, 'error');
       }
     } catch (e) {
-      showToast('Ожидание подключения к After Effects...', 'warning');
+      showToast(`Ожидание подключения к ${isPPro ? 'Premiere Pro' : 'After Effects'}...`, 'warning');
     }
   });
 }
@@ -871,6 +1062,15 @@ function initAutoPlateUI() {
     });
   }
 
+  // Mask Checkbox
+  if (chkPlateMask) {
+    chkPlateMask.checked = plateState.enableMask !== false;
+    chkPlateMask.addEventListener('change', () => {
+      plateState.enableMask = chkPlateMask.checked;
+      savePlateState();
+    });
+  }
+
   // Action Button: Create Auto-Plate
   btnCreateAutoPlate?.addEventListener('click', () => {
     createAutoPlateInAE();
@@ -894,7 +1094,7 @@ function createAutoPlateInAE() {
 
   if (!csInterface.isCEP) {
     // Browser Mock Test Mode
-    showToast(`⚡ [Тест] Создана плашка: отступы L:${prepared.paddingLeft}/R:${prepared.paddingRight}/T:${prepared.paddingTop}/B:${prepared.paddingBottom}px, скругление ${prepared.roundness}px, точка #${prepared.originPoint}`, 'success', 4000);
+    showToast(`⚡ [Тест] Создана плашка: отступы L:${prepared.paddingLeft}/R:${prepared.paddingRight}/T:${prepared.paddingTop}/B:${prepared.paddingBottom}px, скругление ${prepared.roundness}px, маска:${prepared.enableMask ? 'ВКЛ' : 'ВЫКЛ'}`, 'success', 4000);
     playChime(true);
     return;
   }
@@ -925,7 +1125,7 @@ function updateAutoPlateInAE() {
 
   if (!csInterface.isCEP) {
     // Browser Mock Test Mode
-    showToast(`🔄 [Тест] Плашка обновлена: новые слои добавлены, отступы L:${prepared.paddingLeft}/R:${prepared.paddingRight}px`, 'success', 4000);
+    showToast(`🔄 [Тест] Плашка обновлена: новые слои добавлены, отступы L:${prepared.paddingLeft}/R:${prepared.paddingRight}px, маска:${prepared.enableMask ? 'ВКЛ' : 'ВЫКЛ'}`, 'success', 4000);
     playChime(true);
     return;
   }
@@ -1287,6 +1487,13 @@ btnRunQC.addEventListener('click', async () => {
       }
 
       const scanData = JSON.parse(rawResult);
+
+      if (scanData && scanData.composition && scanData.composition.width && scanData.composition.height) {
+        lastActiveContainerSize = {
+          width: Number(scanData.composition.width) || 1920,
+          height: Number(scanData.composition.height) || 1080
+        };
+      }
 
       if (!scanData || !scanData.success) {
         btnRunQC.disabled = false;

@@ -292,4 +292,46 @@ var size = content("Rectangle 1").content("Rectangle Path 1").size;
 var maxRadius = Math.min(size[0], size[1]) / 2;
 Math.min(r, maxRadius);`;
   }
+
+  /**
+   * Generates Size Expression for Matte Layer (Rectangle Path Size)
+   * Dynamically tracks plate size when masked, expands to infinity when mask is disabled.
+   * @param {string} plateLayerName 
+   */
+  static generateMatteSizeExpression(plateLayerName = '') {
+    const safeName = JSON.stringify(plateLayerName);
+    return `// Broadcast QC - Dynamic Text Matte Size
+var plateLayer = thisComp.layer(${safeName});
+var isMasked = 1;
+try {
+  isMasked = plateLayer.effect("Mask Text Content")("Checkbox").value;
+} catch(e) {}
+
+if (isMasked == 1) {
+  plateLayer.content("Plate Box").content("Rectangle Path 1").size;
+} else {
+  [999999, 999999];
+}`;
+  }
+
+  /**
+   * Generates Roundness Expression for Matte Layer (Rectangle Path Roundness)
+   * Tracks plate roundness when masked, 0 when mask is disabled.
+   * @param {string} plateLayerName 
+   */
+  static generateMatteRoundnessExpression(plateLayerName = '') {
+    const safeName = JSON.stringify(plateLayerName);
+    return `// Broadcast QC - Dynamic Text Matte Roundness
+var plateLayer = thisComp.layer(${safeName});
+var isMasked = 1;
+try {
+  isMasked = plateLayer.effect("Mask Text Content")("Checkbox").value;
+} catch(e) {}
+
+if (isMasked == 1) {
+  plateLayer.content("Plate Box").content("Rectangle Path 1").roundness;
+} else {
+  0;
+}`;
+  }
 }

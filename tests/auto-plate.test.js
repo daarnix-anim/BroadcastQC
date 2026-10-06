@@ -101,4 +101,27 @@ describe('Auto-Plate Module Tests', () => {
     assert.strictEqual(res2.plateName, null);
     assert.deepStrictEqual(res2.targetNames, ['Layer 1', 'Layer 2']);
   });
+
+  it('PlateExpressionsGenerator generates matte size and roundness expressions', () => {
+    const sizeExpr = PlateExpressionsGenerator.generateMatteSizeExpression('[Plate] Title');
+    const roundExpr = PlateExpressionsGenerator.generateMatteRoundnessExpression('[Plate] Title');
+
+    assert.ok(sizeExpr.includes('Mask Text Content'));
+    assert.ok(sizeExpr.includes('[Plate] Title'));
+    assert.ok(sizeExpr.includes('999999'));
+
+    assert.ok(roundExpr.includes('Mask Text Content'));
+    assert.ok(roundExpr.includes('[Plate] Title'));
+  });
+
+  it('AutoPlateEngine preserves enableMask in prepared config', () => {
+    const cfgOn = AutoPlateEngine.prepareConfig({ enableMask: true });
+    assert.strictEqual(cfgOn.enableMask, true);
+
+    const cfgOff = AutoPlateEngine.prepareConfig({ enableMask: false });
+    assert.strictEqual(cfgOff.enableMask, false);
+
+    const cfgDefault = AutoPlateEngine.prepareConfig({});
+    assert.strictEqual(cfgDefault.enableMask, true);
+  });
 });

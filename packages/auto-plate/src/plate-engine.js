@@ -20,6 +20,7 @@ export class AutoPlateEngine {
     config.paddingRight = Math.max(0, parseInt(config.paddingRight, 10) || 0);
     config.roundness = Math.max(0, parseInt(config.roundness, 10) || 0);
     config.originPoint = Math.min(8, Math.max(0, parseInt(config.originPoint, 10) || 0));
+    config.enableMask = config.enableMask !== false;
 
     // Style configuration
     const stylePreset = STYLE_PRESETS[String(config.style).toUpperCase()] || STYLE_PRESETS.GLASS;
